@@ -1,0 +1,80 @@
+## paths to input output and tools
+INPUTDIR=/projects/mayo/reference/testdata
+OUTPUTDIR=/projects/mayo/GGPSresults/testgr5
+SAMPLEDIR=/projects/mayo/reference/testdata
+SAMPLEFILENAMES=/projects/mayo/scripts/soapnames.txt
+REFGENOMEDIR=/projects/mayo/reference
+REFGENOME=novoinx/ucsc.hg19.fasta
+DBSNP=dbsnp_135.hg19.vcf
+KGENOME=kGenome/hg19/kgenome.hg19.vcf
+ONTARGET=onTarget/AgilentV4+UTRs_ucsc_refflat_hg19_2011-01-24.10bp.merge.bed
+NOVOINDEX=novoinx/ucsc.hg19.fasta.nix
+BWAINDEX=bwainx/ucsc.hg19.fasta
+NOVODIR=/projects/mayo/builds/novocraft
+BWADIR=/projects/mayo/builds/bwa-0.5.9
+PICARDIR=/projects/mayo/builds/picard-tools-1.55
+GATKDIR=/projects/mayo/builds/GATK-1.2-26
+SAMDIR=/projects/mayo/builds/samtools-0.1.12a
+FASTQCDIR=/projects/mayo/builds/FastQC
+SCRIPTDIR=/projects/mayo/scripts
+SNVMIXDIR=/projects/mayo/builds/SNVMix2-0.11.8-r5
+DELIVERYFOLDER=delivery
+IGVDIR=IGV_BAM
+
+## pbs resources
+EMAIL=gloriarendon@gmail.com
+PBSPROJECTID=ggr
+PBSNODES=8
+PBSTHREADS=16
+PBSQUEUEEXOME=normal
+PBSQUEUEWGEN=normal
+PBSCPUALIGNWGEN=48:00:00
+PBSCPUALIGNEXOME=12:00:00
+PBSCPUOTHERWGEN=48:00:00
+PBSCPUOTHEREXOME=12:00:00
+
+
+## other parameters
+PAIRED=1
+READLENGTH=100
+CHRINDEX=1:2
+SAMPLEID=soap
+SAMPLELB=soap
+SAMPLEPL=illumina
+SAMPLEPU=soap
+SAMPLESM=soap
+SAMPLECN=mayo
+TYPE=exome
+ANALYSIS=realignment
+DISEASE=cancer
+MULTISAMPLE=NO
+GROUPNAMES=NA
+LABINDEX=-:-
+LANEINDEX=1:2
+GENOMEBUILD=hg19
+ALIGNER=NOVOALIGN
+VARIANT_TYPE=BOTH
+SNV_CALLER=GATK
+SOMATIC_CALLER=SOMATICSNIPPER
+EMIT_ALL_SITES=YES
+DEPTH_FILTER=0
+PEDIGREE=NA
+UNIFIEDGENOTYPERPARMS=
+SAMPLEINFORMATION=test run
+SAMPLENAMES=soap
+NOVOPARAMS=-g 60 -x 2 -i PE 425,80 -r Random --hdrhd off -v 120 -c 16
+BWAPARAMS=-l 32 -t 16
+BLATPARAMS=-w 50 -m 70 -t 90
+REALIGNPARMS=
+FASTQCFLAG=YES
+FASTQCPARMS=-t 6 -q
+MARKDUP=YES
+REMOVE_DUP=NO
+REORDERSAM=NO
+RESORTBAM=NO
+BAM2FASTQFLAG=NO
+BAM2FASTQPARMS=INCLUDE_NON_PF_READS=true
+REALIGNORDER=1
+SNVMIX2PARMS=
+SNVMIX2FILTER=-p 0.8
+TARGETTED=NO
