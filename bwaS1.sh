@@ -25,7 +25,7 @@ else
 
         ## checking quality scores to gather additional params
         qscores=$scriptdir/checkFastqQualityScores.pl
-        ill2sanger=`perl $qscores $R1 10000`
+        ill2sanger=`perl $qscores $R 10000`
         if [ $ill2sanger -gt 65 ]
         then
            qual="-I"

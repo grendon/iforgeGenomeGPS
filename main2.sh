@@ -76,7 +76,7 @@ else
             echo "#PBS -q $pbsqueue" >> $qsub1
             echo "#PBS -m ae" >> $qsub1
             echo "#PBS -M $email" >> $qsub1
-            echo "/projects/mayo/scripts/alignew.sh $runfile $outputlogs/MAINaln.in $outputlogs/MAINaln.ou $email $outputlogs/qsub.main.aln" >> $qsub1
+            echo "/projects/mayo/scripts/alignew2.sh $runfile $outputlogs/MAINaln.in $outputlogs/MAINaln.ou $email $outputlogs/qsub.main.aln" >> $qsub1
             `chmod a+r $qsub1`               
             `qsub $qsub1 >> $outputlogs/MAINALNpbs`
             echo `date`
@@ -115,7 +115,7 @@ else
 		    echo "#PBS -q $pbsqueue" >> $qsub1
 		    echo "#PBS -m ae" >> $qsub1
 		    echo "#PBS -M $email" >> $qsub1
-		    echo "/projects/mayo/scripts/alignew.sh $runfile $outputlogs/MAINaln.in $outputlogs/MAINaln.ou $email $outputlogs/qsub.main.aln" >> $qsub1
+		    echo "/projects/mayo/scripts/alignew2.sh $runfile $outputlogs/MAINaln.in $outputlogs/MAINaln.ou $email $outputlogs/qsub.main.aln" >> $qsub1
 		    `chmod a+r $qsub1`               
 		    `qsub $qsub1 >> $outputlogs/MAINALNpbs`
 		    echo `date`
