@@ -2,9 +2,8 @@
 #
 #  script to realign and recalibrate the aligned file(s)
 #  This module is called from within the realign module
-#  Input file(s) is(are) bam format
+#  Input file is in bam format
 #  given a specified region, usually one or more chromosomes at once
-#  one or several samples can be considered in the input
 ######################################
 if [ $# != 11 ]
 then
@@ -73,7 +72,6 @@ else
 
         email=$( cat $runfile | grep -w EMAIL | cut -d '=' -f2 )
         pbsprj=$( cat $runfile | grep -w PBSPROJECTID | cut -d '=' -f2 )
-        threads=$( cat $runfile | grep -w PBSTHREADS | cut -d '=' -f2 )
         type=$( cat $runfile | grep -w TYPE | cut -d '=' -f2 )
         analysis=$( cat $runfile | grep -w ANALYSIS | cut -d '=' -f2 )
 
@@ -152,7 +150,6 @@ else
         sPU=$sample
         sSM=$sample
         RGparms=$( echo "RGID=${sID}:RGLB=${sLB}:RGPU=${sPU}:RGSM=${sSM}:RGPL=${sPL}:RGCN=${sCN}" )
-        thr=`expr $threads "-" 1`
         vardir=$outputrootdir/variant/$aligndir
         varlogdir=$outputrootdir/logs/variant
 
@@ -236,17 +233,9 @@ else
 
 		 chrinfiles[$inx]="-I:$outputdir/$bamfile.$chr.sorted.bam"
 		 chrinputfiles[$inx]="INPUT=$outputdir/$bamfile.$chr.sorted.bam"
-            done
-        done
 
-        `sleep 5s`
-
-	## LOCAL REALIGNMENT AROUND INDELS
-        for chr in $indices
-        do
             echo "realign-recalibrate for interval:$chr..."
 
-            inx=$( echo $chr | sed 's/chr//' | sed 's/X/25/' | sed 's/Y/26/' | sed 's/M/27/' )
             jobids=$( cat $realignlogdir/SORTED_$chr | sed "s/\.[a-z]*//g" | tr "\n" ":" )
             qsub2=$realignlogdir/qsub.realrecal.$chr
             echo "#PBS -V" > $qsub2
@@ -287,4 +276,5 @@ else
 	`chmod -R 770 $realignlogdir/`
 	`chmod -R 770 $vardir/`
 	`chmod -R 770 $varlogdir/`
+     done
 fi
