@@ -182,7 +182,7 @@ else
             --output_mode $umode \
             -A DepthOfCoverage \
 	    -A AlleleBalance \
-	    -dcov 2000 \
+	    -dcov 250 \
 	    -rf BadCigar \
 	    -o $outfile $region $uparms
 
