@@ -3,10 +3,13 @@
 ########################### 
 #		$1		=	       run info file
 ###########################
+redmine=hpcbio-redmine@igb.illinois.edu
 
 if [ $# != 1 ]
 then
-    echo "Usage: <RUN INFO FILE>";
+        MSG="Parameter mismatch."
+        echo -e "program=$0 stopped at line=$LINENO. Reason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine""
+        exit 1;
 else
 	set -x
 	echo `date`	
@@ -14,27 +17,51 @@ else
         runfile=$1
         if [ !  -s $runfile ]
         then
-           MSG="$runfile file not found"
-           echo -e "program=$scriptfile stopped at line=$LINENO. Reason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$USER@$HOST"" 
+           MSG="$runfile configuration file not found."
+           echo -e "program=$scriptfile stopped at line=$LINENO. Reason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
            exit 1;
         fi
 
 	outputdir=$( cat $runfile | grep -w OUTPUTDIR | cut -d '=' -f2 )
         email=$( cat $runfile | grep -w EMAIL | cut -d '=' -f2 )
         pbsprj=$( cat $runfile | grep -w PBSPROJECTID | cut -d '=' -f2 )
-        thr=$( cat $runfile | grep -w PBSTHREADS | cut -d '=' -f2 )
-        type=$( cat $runfile | grep -w TYPE | cut -d '=' -f2 )
-        analysis=$( cat $runfile | grep -w ANALYSIS | cut -d '=' -f2 )
-        resortbam=$( cat $runfile | grep -w RESORTBAM | cut -d '=' -f2 )
-        bam2fqflag=$( cat $runfile | grep -w BAM2FASTQFLAG | cut -d '=' -f2 )
-
-        if [ $type == "whole_genome" ]
+        epilogue=$( cat $runfile | grep -w EPILOGUE | cut -d '=' -f2 )
+        type=$( cat $runfile | grep -w TYPE | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
+        scriptdir=$( cat $runfile | grep -w SCRIPTDIR | cut -d '=' -f2 )
+        if [ -z $epilogue ]
         then
-            pbscpu=$( cat $runfile | grep -w PBSCPUALIGNWGEN | cut -d '=' -f2 )
+	    MSG="Invalid value for parameter EPILOGUE=$epilogue  in configuration file"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+            exit 1;
+        fi
+
+        if [ ! -d $scriptdir ]
+        then
+           MSG="SCRIPTDIR=$scriptdir directory not found"
+           echo -e "program=$scriptfile stopped at line=$LINENO. Reason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+           exit 1;
+        fi
+        if [ -z $email ]
+        then
+           MSG="Invalid value for parameter PBSEMAIL=$email in configuration file"
+           echo -e "program=$scriptfile stopped at line=$LINENO. Reason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine""
+           exit 1;
+        fi
+
+        if [ $type == "GENOME" -o $type == "WHOLE_GENOME" -o $type == "WHOLEGENOME" -o $type == "WGS" ]
+        then
+            pbscpu=$( cat $runfile | grep -w PBSCPUOTHERWGEN | cut -d '=' -f2 )
             pbsqueue=$( cat $runfile | grep -w PBSQUEUEWGEN | cut -d '=' -f2 )
         else
-            pbscpu=$( cat $runfile | grep -w PBSCPUALIGNEXOME | cut -d '=' -f2 )
-            pbsqueue=$( cat $runfile | grep -w PBSQUEUEEXOME | cut -d '=' -f2 )
+            if [ $type == "EXOME" -o $type == "WHOLE_EXOME" -o $type == "WHOLEEXOME" -o $type == "WES" ]
+            then
+		pbscpu=$( cat $runfile | grep -w PBSCPUOTHEREXOME | cut -d '=' -f2 )
+		pbsqueue=$( cat $runfile | grep -w PBSQUEUEEXOME | cut -d '=' -f2 )
+            else
+		MSG="Invalid value for parameter TYPE=$type  in configuration file."
+		echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+                exit 1;
+            fi
         fi
 
         if [ ! -d $outputdir ]
@@ -47,22 +74,31 @@ else
             mkdir -p $outputdir/logs
         fi
         `chmod -R 770 $outputdir/`
+        `chmod 750 $epilogue`
+
         outputlogs=$outputdir/logs
 	echo "launching the main pipeline"
         qsub1=$outputlogs/qsub.main
         echo "#PBS -V" > $qsub1
         echo "#PBS -A $pbsprj" >> $qsub1
         echo "#PBS -N MAIN" >> $qsub1
-	echo "#PBS -l walltime=00:60:00" >> $qsub1
+        echo "#PBS -l epilogue=$epilogue" >> $qsub1
+	echo "#PBS -l walltime=00:30:00" >> $qsub1
 	echo "#PBS -l nodes=1:ppn=1" >> $qsub1
 	echo "#PBS -o $outputlogs/MAIN.ou" >> $qsub1
 	echo "#PBS -e $outputlogs/MAIN.in" >> $qsub1
-        echo "#PBS -q normal" >> $qsub1
+        echo "#PBS -q debug" >> $qsub1
         echo "#PBS -m ae" >> $qsub1
         echo "#PBS -M $email" >> $qsub1
-        echo "/projects/mayo/scripts/main2.sh $runfile batch $outputlogs/MAIN.in $outputlogs/MAIN.ou $email $outputlogs/qsub.main" >> $qsub1
+        echo "$scriptdir/main2.sh $runfile batch $outputlogs/MAIN.in $outputlogs/MAIN.ou $email $outputlogs/qsub.main" >> $qsub1
         `chmod a+r $qsub1`               
-        `qsub $qsub1 >> $outputlogs/MAINpbs`
+        jobid=`qsub $qsub1`
+        echo $jobid >> $outputlogs/MAINpbs
 	`cp $runfile $outputdir/runfile.txt`
         echo `date`
+
+        MSG="GGPS pipeline started on iforge by username:$USER at: "$( echo `date` )
+        LOGS="jobid=${jobid}\nqsubfile=$outputlogs/qsub.main\nrunfile=$outputdir/runfile.txt\nerrorlog=$outputlogs/MAIN.in\noutputlog=$outputlogs/MAIN.ou"
+        echo -e "$MSG\n\nDetails:\n\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+
 fi

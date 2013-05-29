@@ -1,9 +1,9 @@
 #!/bin/sh
-
+redmine=hpcbio-redmine@igb.illinois.edu
 if [ $# != 11 ]
 then
         MSG="parameter mismatch"
-        echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$USER@HOST""
+        echo -e "jobid:${PBS_JOBID}\nprogram=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine""
         exit 1;
 else
 	set -x
@@ -20,7 +20,7 @@ else
         olog=$9
         email=${10}
         qsubfile=${11}
-        LOGS="qsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
+        LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
         parameters=$( echo $parms | tr "_" " " )
 
         ## checking quality scores to gather additional params
@@ -37,8 +37,8 @@ else
         $aligndir/bwa aln $parameters $qual $ref $R > $outputfile
         if [ ! -s $outputdir/$outputfile ]
         then
-            MSG="$outputdir/$outputfile file not created. alignment failed"
-	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+            MSG="$outputdir/$outputfile aligned file not created. alignment failed"
+	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
         echo `date`

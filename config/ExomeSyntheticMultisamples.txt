@@ -1,0 +1,4 @@
+FASTQ:normal=normal_1.fq normal_2.fq
+FASTQ:tumor=tumor_1.fq tumor_2.fq
+FASTQ:sampleA=sampleA_R1.fastq sampleA_R2.fastq
+FASTQ:sampleB=sampleB_R1.fastq sampleB_R2.fastq

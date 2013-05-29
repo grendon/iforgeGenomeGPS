@@ -2,48 +2,39 @@
 #	
 #  script to perform variant calling with unifiedgenotyper ONLY
 #  This module is called from within the realign module
-#  Input file(s) is(are) bam format 
-#  given a specified region, usually one chromosome at once
-#  one or several samples can be considered in the input
 ######################################
-	
+redmine=hpcbio-redmine@igb.illinois.edu
+
 if [ $# != 10 ];
 then
 	MSG="parameter mismatch."
-        echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$USER@HOST""
+        echo -e "jobid:${PBS_JOBID}\nprogram=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine""
         exit 1;
 else					
 	set -x
 	echo `date`
+	scriptfile=$0
         outputdir=$1
         inputdir=$2
-	sample=$3
+        infile=$3
         chr=$4
         region=$5
         runfile=$6
 	elog=$7
 	olog=$8
 	email=$9
-	scriptfile=$0
         qsubfile=${10}
-	LOGS="qsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
+	LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
 
         #sanity check
         if [ ! -s $runfile ]
         then
-	    MSG="$runfile file not found"
-	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$runfile configuration file not found"
+	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
 
-        if [ -z $region ]
-        then
-	    MSG="$region interval for vcall was not specified"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
-	    exit 1;
-        fi
-        suffix="recal.cleaned.bam"
-        infile=${sample}*$chr.$suffix
+
         region=$( echo $region | tr ":" " " )
         refdir=$( cat $runfile | grep -w REFGENOMEDIR | cut -d '=' -f2 )
         ref=$( cat $runfile | grep -w REFGENOME | cut -d '=' -f2 )
@@ -59,17 +50,31 @@ else
         snvmixfilter=$( cat $runfile | grep -w SNVMIX2FILTER | cut -d '=' -f2 )
         uparms=$( cat $runfile | grep -w UNIFIEDGENOTYPERPARMS | cut -d '=' -f2 )
         onlyontarget=$( cat $runfile | grep -w TARGETTED | cut -d '=' -f2 )
+        javamodule=$( cat $runfile | grep -w JAVAMODULE | cut -d '=' -f2 )
+        skipvcall=$( cat $runfile | grep -w SKIPVCALL | cut -d '=' -f2 )
+
+        if [ $skipvcall == "YES" ]
+        then
+            echo "skipping the execution of this variant calling module"
+	    exit 0;
+        fi
+        if [ `expr length ${region}` -lt 1 ]
+        then
+	    MSG="$region interval for vcall was not specified"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit 1;
+        fi
 
         if [ ! -d $inputdir ]
         then
-	    MSG="$inputdir directory not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$inputdir directory with realigned bams not found"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
         if [ ! -s $inputdir/$infile ]
         then
-	    MSG="$inputdir/$infile input file not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$inputdir/$infile realigned bam file not found"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
 
@@ -80,55 +85,65 @@ else
 
         if [ ! -d $picardir ]
         then
-	    MSG="$picardir directory not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$picardir picard directory not found"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
         if [ ! -d $samdir ]
         then
-	    MSG="$samdir directory not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$samdir samtools directory not found"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
+        if [ -z $javamodule ]
+        then
+	    MSG="A value must be specified for JAVAMODULE in configuration file"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit 1;
+        else
+            `/usr/local/modules-3.2.9.iforge/Modules/bin/modulecmd bash load $javamodule`
+        fi      
         if [ ! -d $gatk ]
         then
-	    MSG="$gatk directory not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$gatk GATK directory not found"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
 
         if [ ! -d $refdir ]
         then
 	    MSG="$refdir reference genome directory not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi      
         if [ ! -s $refdir/$ref ]
         then
 	    MSG="$ref reference genome not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
         if [ -z $snvcaller ]
         then
-	    MSG="$snvcaller snvcaller tool was not specified"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$snvcaller snvcaller tool was not specified in configuration file"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
 
+
+       ## setting up filters and parameters for snvcaller
 
        if [ $snvcaller == "GATK" ]
        then
 	   echo "snvcaller is GATK"
            if [[ $allsites == "YES" && $type == "exome" ]]
            then
-               pedfile=$sample.variant.$chr.raw.all.pbt.vcf
-	       outfile=$sample.variant.$chr.raw.all.vcf
+               pedfile=variant.$chr.raw.all.pbt.vcf
+	       outfile=variant.$chr.raw.all.vcf
 	       umode="EMIT_ALL_SITES"
 	       utype="BOTH"
            else
-               pedfile=$sample.variant.$chr.raw.pbt.vcf
-	       outfile=$sample.variant.$chr.raw.vcf
+               pedfile=variant.$chr.raw.pbt.vcf
+	       outfile=variant.$chr.raw.vcf
 	       umode="EMIT_VARIANTS_ONLY"
 	       utype="BOTH"
            fi
@@ -137,17 +152,17 @@ else
 	   echo "snvcaller is SNVMIX"
            if [ $allsites == "YES" -a $type == "exome" ]
            then
-	       snvfile=$sample.variant.$chr.raw.snv.all.vcf
-	       outfile=$sample.variant.$chr.raw.indel.all.vcf
-	       combfile=$sample.variant.$chr.raw.multi.vcf
+	       snvfile=variant.$chr.raw.snv.all.vcf
+	       outfile=variant.$chr.raw.indel.all.vcf
+	       combfile=variant.$chr.raw.multi.vcf
 	       combparms="-V $outputdir/$snvfile -V $outputdir/$outfile"
 	       umode="EMIT_ALL_SITES"
 	       utype="INDEL"
                smode="all"
            else
-	       snvfile=$sample.variant.$chr.raw.snv.vcf
-	       outfile=$sample.variant.$chr.raw.indel.vcf
-	       combfile=$sample.variant.$chr.raw.multi.vcf
+	       snvfile=variant.$chr.raw.snv.vcf
+	       outfile=variant.$chr.raw.indel.vcf
+	       combfile=variant.$chr.raw.multi.vcf
 	       combparms="$-V outputdir/$snvfile -V $outputdir/$outfile"
 	       umode="EMIT_VARIANTS_ONLY"
 	       utype="INDEL"
@@ -156,16 +171,16 @@ else
        elif [ $snvcaller == "BEAUTY_EXOME" ]
        then
 	   echo "snvcaller is BEAUTY_EXOME"
-	   snvfile=$sample.variant.$chr.raw.snvmix.vcf
-	   outfile=$sample.variant.$chr.raw.gatk.vcf
-	   combfile=$sample.variant.$chr.raw.multi.vcf
+	   snvfile=variant.$chr.raw.snvmix.vcf
+	   outfile=variant.$chr.raw.gatk.vcf
+	   combfile=variant.$chr.raw.multi.vcf
 	   combparms="-V:GATK $outputdir/$outfile -V:SNVMix $outputdir/$snvfile -priority GATK,SNVMix" 
 	   umode="EMIT_VARIANTS_ONLY"
 	   utype="BOTH"
 	   smode="target"
        else
-	   MSG="snvcaller = $snvcaller. This case is not currently available at this site"
-	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	   MSG="SNV_CALLER=$snvcaller. This case is not currently available at this site"
+	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	   exit 1;
        fi
 
@@ -188,15 +203,15 @@ else
 
         if [ ! -s $outfile ]
         then
-	    MSG="$outfile file not created. vcall failed."
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$outfile unifiedgenotyper file not created. vcall failed."
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
 
 	echo `date`
 
         echo "calculating phasebytransmission if requested"
-        if [[ $ped != "NA" && $snvcaller == "GATK" ]]
+        if [ $ped != "NA" -a $snvcaller == "GATK" ]
         then
             echo "calculating phasebytransmission"
             java -Xmx6g -Xms512m -Djava.io.tmpdir=$outputdir -jar $gatk/GenomeAnalysisTK.jar \
@@ -208,8 +223,8 @@ else
 
             if [ ! -s $pedfile ]
             then
-		MSG="$pedfile file not created. vcall failed."
-		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		MSG="$pedfile phasebytransmission file not created. vcall failed."
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		exit 1;
             fi
 
@@ -218,12 +233,12 @@ else
         then
 	    echo "calculating variants by snvmix and then merging results"
             pilefile=$outfile.pileup
-            tmpfile=$sample.variant.$chr.tmp.snv
+            tmpfile=variant.$chr.tmp.snv
             $samdir/samtools mpileup -f $refdir/$ref $inputdir/$infile > $pilefile 
 	    if [ ! -s $pilefile ]
             then
-		MSG="pileup file not created. snvmix failed"
-		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		MSG="$pilefile pileup file not created. snvmix failed"
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		exit 1;
 	    fi
             if [ $smode == "all" ]
@@ -235,15 +250,15 @@ else
 	    fi
 	    if [ ! -s $tmpfile ]
             then
-		MSG="snvmix file not created. snvmix failed"
-		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		MSG="$tmpfile snvmix file not created. snvmix failed"
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		exit 1;
 	    fi
 	    perl $scriptdir/snvmix_to_vcf.pl -i $tmpfile -o $snvfile
 	    if [ ! -s $snvfile ]
             then
 		MSG="snv to vcf conversion failed"
-		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		exit 1;
 	    fi
 
@@ -257,8 +272,8 @@ else
 
             if [ ! -s $combfile ]
             then
-		MSG="$combfile file not created. vcall failed."
-		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		MSG="$combfile combineVariants file not created. vcall failed."
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		exit 1;
             fi
         else

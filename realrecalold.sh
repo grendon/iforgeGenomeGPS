@@ -1,23 +1,20 @@
 #!/bin/sh
 #	
 #  script to realign and recalibrate the aligned file(s) 
-#  This module is called from within the realign module
-#  Input file(s) is(are) bam format 
-#  given a specified region, usually one or more chromosomes at once
-#  one or several samples can be considered in the input
-######################################
-	
+########################################################
+redmine=hpcbio-redmine@igb.illinois.edu
+
 if [ $# != 13 ];
 then
 	MSG="parameter mismatch."
-        echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$USER@HOST""
+        echo -e "jobid:${PBS_JOBID}\nprogram=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine""
         exit 1;
 else					
 	set -x
 
 	echo `date`
-	
-        sampledir=$1
+	scriptfile=$0
+        outputfile=$1	
         chr=$2
         chrinfiles=$3
         chrinputfiles=$4
@@ -29,18 +26,16 @@ else
 	elog=${10}
 	olog=${11}
 	email=${12}
-	scriptfile=$0
         qsubfile=${13}
-	LOGS="qsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
+	LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
 
-        #sanity check
         if [ ! -s $runfile ]
         then
-	    MSG="$runfile file not found"
-	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$runfile configuration file not found"
+	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
-
+        javamodule=$( cat $runfile | grep -w JAVAMODULE | cut -d '=' -f2 )
         threads=$( cat $runfile | grep -w PBSTHREADS | cut -d '=' -f2 )
         refdir=$( cat $runfile | grep -w REFGENOMEDIR | cut -d '=' -f2 )
         ref=$( cat $runfile | grep -w REFGENOME | cut -d '=' -f2 )
@@ -54,49 +49,59 @@ else
 	outputrootdir=$( cat $runfile | grep -w OUTPUTDIR | cut -d '=' -f2 )
         thr=`expr $threads "-" 1`
 
-        if [ ! -d $picardir ]
-        then
-	    MSG="$picardir directory not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
-	    exit 1;
-        fi
-        if [ ! -d $samdir ]
-        then
-	    MSG="$samdir directory not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
-	    exit 1;
-        fi
-        if [ ! -d $gatk ]
-        then
-	    MSG="$gatk directory not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
-	    exit 1;
-        fi
-
-        if [ ! -d $refdir ]
-        then
-	    MSG="$refdir reference genome directory not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
-	    exit 1;
-        fi      
-        if [ ! -s $refdir/$ref ]
-        then
-	    MSG="$ref reference genome not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
-	    exit 1;
-        fi
-
         # cleaning up the lists
         chrinfiles=$( echo $chrinfiles | tr ":" " " )
         chrinputfiles=$( echo $chrinputfiles | tr ":" " " )
         region=$( echo $region | tr ":" " " )
         realparms=$( echo $realparms | tr ":" " " )
         recalparms=$( echo $recalparms | tr ":" " " )
-        inputdir=$outputrootdir/realign/$sampledir
+
+        if [ ! -d $picardir ]
+        then
+	    MSG="$picardir picard directory not found"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge
+"mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""	    exit 1;
+        fi
+        if [ ! -d $samdir ]
+        then
+	    MSG="$samdir samtools directory not found"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit 1;
+        fi
+        if [ ! -d $gatk ]
+        then
+	    MSG="$gatk GATK directory not found"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit 1;
+        fi
+
+        if [ -z $javamodule ]
+        then
+	    MSG="Value for JAVAMODULE must be specified in configuration file"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit 1;
+        else
+            `/usr/local/modules-3.2.9.iforge/Modules/bin/modulecmd bash load $javamodule`
+        fi
+
+        if [ ! -d $refdir ]
+        then
+	    MSG="$refdir reference genome directory not found"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit 1;
+        fi      
+        if [ ! -s $refdir/$ref ]
+        then
+	    MSG="$ref reference genome not found"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit 1;
+        fi
+
+        inputdir=$outputrootdir/realign
         if [ ! -d $inputdir ]
         then
-	    MSG="$inputdir directory not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$inputdir realign directory not found"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
 
@@ -111,12 +116,12 @@ else
 		    -R $refdir/$ref \
 		    $chrinfiles \
 		    -T RealignerTargetCreator \
-		    -o $sampledir.$chr.bam.list $realparms $region
+		    -o realign.$chr.bam.list $realparms $region
 	
-		if [ ! -s $sampledir.$chr.bam.list ]
+		if [ ! -s realign.$chr.bam.list ]
 		then
-		    MSG="$sampledir.$chr.bam.list file not created."
-		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		    MSG="realign.$chr.bam.list realignertargetcreator file not created."
+		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
                     exit 1;
 		fi
 		echo `date`
@@ -127,44 +132,28 @@ else
 		    $chrinfiles \
 		    -T IndelRealigner \
                     -L $chr \
-		    -o $sampledir.$chr.realigned.bam \
-		    -targetIntervals $sampledir.$chr.bam.list $realignparams $realparms
+		    -o realign.$chr.realigned.bam \
+		    -targetIntervals realign.$chr.bam.list $realignparams $realparms
 
-		if [ ! -s $sampledir.$chr.realigned.bam ]
+		if [ ! -s realign.$chr.realigned.bam ]
 		then
-		    MSG="realigned.bam file not created."
-		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		    MSG="realigned.bam indelrealigner file not created."
+		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
                     exit 1;
                 else
-		    mv $sampledir.$chr.realigned.bai $sampledir.$chr.realigned.bam.bai
-		    cp $sampledir.$chr.realigned.bam $sampledir.$chr.real.cleaned.bam
-		    cp $sampledir.$chr.realigned.bam.bai $sampledir.$chr.real.cleaned.bam.bai
-                    $samdir/samtools flagstat $sampledir.$chr.real.cleaned.bam > $sampledir.$chr.real.cleaned.flagstat
+		    mv realign.$chr.realigned.bai realign.$chr.realigned.bam.bai
+		    cp realign.$chr.realigned.bam realign.$chr.real.cleaned.bam
+		    cp realign.$chr.realigned.bam.bai realign.$chr.real.cleaned.bam.bai
+                    $samdir/samtools flagstat realign.$chr.real.cleaned.bam > realign.$chr.real.cleaned.flagstat
 		fi
 		echo `date`
 
 		echo "recalibrating..."
 	
-                # next step FixMateInformation is not done at Mayo..."
-		#java -Xmx6g -Xms512m  -jar $picardir/FixMateInformation.jar \
-		#    INPUT=$sampledir.$chr.real.cleaned.bam \
-		#    OUTPUT=$sampledir.$chr.real.fixed.bam \
-		#    SO=coordinate \
-		#    TMP_DIR=$inputdir \
-		#    VALIDATION_STRINGENCY=SILENT \
-		#    CREATE_INDEX=true
-
-		#if [ ! -s $sampledir.$chr.real.fixed.bam ]
-		#then
-		#    echo "$sampledir.$chr.realigned.fixed.bam file not created"
-		#    exit 1;
-		#fi
-		#echo `date`
-
 		java -Xmx6g -Xms512m -Djava.io.tmpdir=$inputdir -jar $gatk/GenomeAnalysisTK.jar \
 		    -R $refdir/$ref \
 		    $recalparms \
-		    -I $sampledir.$chr.real.cleaned.bam \
+		    -I realign.$chr.real.cleaned.bam \
 		    $region  \
 		    -T CountCovariates \
 		    -nt $thr \
@@ -172,12 +161,12 @@ else
 		    -cov QualityScoreCovariate \
 		    -cov CycleCovariate \
 		    -cov DinucCovariate \
-		    -recalFile $sampledir.$chr.recal_data.csv 
+		    -recalFile recal.$chr.recal_data.csv 
 	
-		if [ ! -s $sampledir.$chr.recal_data.csv ]
+		if [ ! -s recal.$chr.recal_data.csv ]
 		then
-		    MSG="$sampledir.$chr.recal_data.csv file not created"
-		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		    MSG="recal.$chr.recal_data.csv countcovariates file not created"
+		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		    exit 1;
 		fi
 		echo `date`
@@ -185,26 +174,24 @@ else
 		java -Xmx6g -Xms512m  -Djava.io.tmpdir=$inputdir -jar $gatk/GenomeAnalysisTK.jar \
 		    -R $refdir/$ref \
 		    -L $chr \
-		    -I $sampledir.$chr.real.cleaned.bam \
+		    -I realign.$chr.real.cleaned.bam \
 		    -T TableRecalibration \
-		    --out $sampledir.$chr.real.recal.bam \
-		    -recalFile $sampledir.$chr.recal_data.csv 
+		    --out recal.$chr.real.recal.bam \
+		    -recalFile recal.$chr.recal_data.csv 
 
-		if [ ! -s $sampledir.$chr.real.recal.bam ]
+		if [ ! -s recal.$chr.real.recal.bam ]
 		then
-		    MSG="$chr.real.recal.bam file not created"
-		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		    MSG="$chr.real.recal.bam tablerecalibration file not created"
+		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		    exit 1;
 		fi
-		cp $sampledir.$chr.real.recal.bam $sampledir.$chr.recal.cleaned.bam
-		cp $sampledir.$chr.real.recal.bai $sampledir.$chr.recal.cleaned.bam.bai
-		$samdir/samtools flagstat $sampledir.$chr.recal.cleaned.bam > $sampledir.$chr.recal.cleaned.flagstat
+		cp recal.$chr.real.recal.bam $outputfile
+		cp recal.$chr.real.recal.bai $outputfile.bai
+		$samdir/samtools flagstat $outputfile > $outputfile.flagstat
  		echo `date`
         else
 		echo "recalibrate then realign"
 		echo "recalibrating"
-                echo "I am not sure that this block will ever be run"
-
 
 		java -Xmx6g -Xms512m -Djava.io.tmpdir=$inputdir -jar $gatk/GenomeAnalysisTK.jar \
 		    -R $refdir/$ref \
@@ -217,12 +204,12 @@ else
 		    -cov QualityScoreCovariate \
 		    -cov CycleCovariate \
 		    -cov DinucCovariate \
-		    -recalFile $sampledir.$chr.recal_data.csv 
+		    -recalFile recal.$chr.recal_data.csv 
 	
-		if [ ! -s $sampledir.$chr.recal_data.csv ]
+		if [ ! -s recal.$chr.recal_data.csv ]
 		then
-		    MSG="$sampledir.$chr.recal_data.csv file not created"
-		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		    MSG="recal.$chr.recal_data.csv countcovariates file not created"
+		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		    exit 1;
 		fi
 	
@@ -233,53 +220,53 @@ else
 		    -L $chr \
 		    $chrinfiles \
 		    -T TableRecalibration \
-		    --out $sampledir.$chr.recal.bam \
-		    -recalFile $sampledir.$chr.recal_data.csv 
+		    --out recal.$chr.recal.bam \
+		    -recalFile recal.$chr.recal_data.csv 
 
-		if [ ! -s $sampledir.$chr.recal.bam ]
+		if [ ! -s recal.$chr.recal.bam ]
 		then
-		    MSG="$sampledir.$chr.recal.bam file not created"
-		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		    MSG="recal.$chr.recal.bam tablerecalibration file not created"
+		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		    exit 1;
                 else 
-                    cp $sampledir.$chr.recal.bam $sampledir.$chr.recal.cleaned.bam
-                    cp $sampledir.$chr.recal.bai $sampledir.$chr.recal.cleaned.bam.bai
-		    $samdir/samtools flagstat $sampledir.$chr.recal.cleaned.bam > $sampledir.$chr.recal.cleaned.flagstat
+                    cp recal.$chr.recal.bam recal.$chr.recal.cleaned.bam
+                    cp recal.$chr.recal.bai recal.$chr.recal.cleaned.bam.bai
+		    $samdir/samtools flagstat recal.$chr.recal.cleaned.bam > recal.$chr.recal.cleaned.flagstat
 		fi
  		echo `date`
 
 		echo "realigning"
 		java -Xmx6g -Xms512m -Djava.io.tmpdir=$inputdir -jar $gatk/GenomeAnalysisTK.jar \
 		    -R $refdir/$ref \
-		    -I $sampledir.$chr.recal.bam \
-		    -o $sampledir.$chr.recal.bam.list \
+		    -I recal.$chr.recal.bam \
+		    -o realign.$chr.recal.bam.list \
 		    -T RealignerTargetCreator $realparms $region
 	
-		if [ ! -s $sampledir.$chr.recal.bam.list ]
+		if [ ! -s realign.$chr.recal.bam.list ]
 		then
-		    MSG="$sampledir.$chr.recal.bam.list file not created."
-		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		    MSG="realign.$chr.recal.bam.list realigntargetcreator file not created."
+		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
                     exit 1;
 		fi
 		echo `date`
 
 		java -Xmx6g -Xms512m -Djava.io.tmpdir=$inputdir -jar $gatk/GenomeAnalysisTK.jar \
 		    -R $refdir/$ref \
-		    -I $sampledir.$chr.recal.bam \
+		    -I recal.$chr.recal.bam \
 		    -T IndelRealigner \
                     -L $chr \
-		    -targetIntervals $sampledir.$chr.recal.bam.list $realignparms $realparms \
-		    -o $sampledir.$chr.recal.realigned.bam
+		    -targetIntervals realign.$chr.recal.bam.list $realignparms $realparms \
+		    -o realign.$chr.recal.realigned.bam
 
-		if [ ! -s $sampledir.$chr.recal.realigned.bam ]
+		if [ ! -s realign.$chr.recal.realigned.bam ]
 		then
-		    MSG="$sampledir.$chr.recal.realigned.bam file not created."
-		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+		    MSG="realign.$chr.recal.realigned.bam indelrealigner file not created."
+		    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		    exit 1;
 		fi
-		cp $sampledir.$chr.recal.realigned.bam $sampledir.$chr.real.cleaned.bam
-		cp $sampledir.$chr.recal.realigned.bam.bai $sampledir.$chr.real.cleaned.bam.bai
-		$samdir/samtools flagstat $sampledir.$chr.real.cleaned.bam > $sampledir.$chr.real.cleaned.flagstat
+		cp realign.$chr.recal.realigned.bam $outputfile
+		cp realign.$chr.recal.realigned.bam.bai $outputfile.bai
+		$samdir/samtools flagstat $outputfile > $outputfile.flagstat
 		echo `date`
         fi
 

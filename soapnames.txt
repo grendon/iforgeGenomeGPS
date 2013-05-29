@@ -1,1 +1,0 @@
-FASTQ:soap=SRR211279_1.fq	SRR211279_2.fq

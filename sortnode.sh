@@ -1,55 +1,64 @@
 #!/bin/sh
-if [ $# != 11 ]
+redmine=hpcbio-redmine@igb.illinois.edu
+
+if [ $# != 12 ]
 then
 	MSG="parameter mismatch."
-        echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$USER@HOST""
+        echo -e "jobid:${PBS_JOBID}\nprogram=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine""
         exit 1;
 else
     set -x
     echo `date`
+    scriptfile=$0
     picardir=$1
     samdir=$2
-    outputdir=$3
-    infile=$4
-    outfile=$5
-    rgparms=$6
-    alignflag=$7
-    elog=$8
-    olog=$9
-    email=${10}
-    scriptfile=$0
-    qsubfile=${11}
-    LOGS="qsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
+    javamodule=$3
+    outputdir=$4
+    infile=$5
+    outfile=$6
+    rgparms=$7
+    flag=$8
+    elog=$9
+    olog=${10}
+    email=${11}
+    qsubfile=${12}
+    LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
 
-    tmpfile=tmp.wrg.$infile
-    sample=`basename $outputdir`
-    parameters=$( echo $rgparms | tr ":" " " )
-
-    #sanity check
     if [ ! -d $outputdir ]
     then
-       MSG="$outputdir directory not found"
-       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+       MSG="$outputdir realign directory not found"
+       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
        exit 1;
     fi
     if [ ! -d $picardir ]
     then
-       MSG="$picardir directory not found"
-       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+       MSG="$picardir picard directory not found"
+       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
        exit 1;
     fi
     if [ ! -s $outputdir/$infile ]
     then
-       MSG="$infile file to be sorted not found"
-       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+       MSG="$infile bam file to be sorted not found"
+       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
        exit 1;
     fi
+    if [ -z $javamodule ]
+    then
+	MSG="A value must be specified for JAVAMODULE in configuration file"
+	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	exit 1;
+    else
+        `/usr/local/modules-3.2.9.iforge/Modules/bin/modulecmd bash load $javamodule`
+    fi          
 
+    tmpfile=tmp.wrg.$infile
+    parameters=$( echo $rgparms | tr ":" " " )
+    sortflag=$( echo $flag | tr '[a-z]' '[A-Z]' )
     cd $outputdir
 
     ## before sorting, we need to make sure the bam file has readgroup info
 
-    if [ $alignflag == "NCSA" ]
+    if [ $sortflag == "NCSA" ]
     then
        echo "alignment was done inhouse. we need to add_readgroup info"
        java -Xmx6g -Xms512m -jar $picardir/AddOrReplaceReadGroups.jar \
@@ -61,31 +70,39 @@ else
            $parameters \
 	   VALIDATION_STRINGENCY=SILENT
     else
-       echo "alignment was NOT done inhouse. checking if readgroup info is present"
-       $samdir/samtools view -H $infile > $infile.header
-       match=$( cat $file.header | grep '^@RG' )
-       lenmatch=`expr length $match`
-       if [ $lenmatch -gt 0 ]
+       if [ $sortflag == "MAYO" ]
        then
-          echo "readgroup info found in input file."
-          cp $infile $tmpfile
+	   echo "alignment was done at Mayo. checking if readgroup info is present"
+	   $samdir/samtools view -H $infile > $infile.header
+	   match=$( cat $file.header | grep '^@RG' )
+	   lenmatch=`expr length $match`
+	   if [ $lenmatch -gt 0 ]
+	   then
+               echo "readgroup info found in input file."
+               cp $infile $tmpfile
+	   else
+               echo "readgroup info NOT found in input file. Adding it now..."
+	       java -Xmx6g -Xms512m -jar $picardir/AddOrReplaceReadGroups.jar \
+		   INPUT=$infile \
+		   OUTPUT=$tmpfile \
+		   MAX_RECORDS_IN_RAM=null \
+		   TMP_DIR=$outputdir \
+		   SORT_ORDER=unsorted \
+		   $parameters \
+		   VALIDATION_STRINGENCY=SILENT
+	   fi
        else
-          echo "readgroup info NOT found in input file. Adding it now..."
-	  java -Xmx6g -Xms512m -jar $picardir/AddOrReplaceReadGroups.jar \
-	      INPUT=$infile \
-	      OUTPUT=$tmpfile \
-	      MAX_RECORDS_IN_RAM=null \
-	      TMP_DIR=$outputdir \
-	      SORT_ORDER=unsorted \
-              $parameters \
-	      VALIDATION_STRINGENCY=SILENT
+           MSG="Invalid value for sortflag in realignment step"
+	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	   exit 1;
+          
        fi
     fi
 
     if [ ! -s $tmpfile ]
     then
-	MSG="$tmpfile file not created. add_readGroup step failed"
-	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	MSG="$tmpfile bam file not created. add_readGroup step failed during realignment"
+	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	exit 1;
     fi
     echo `date`
@@ -101,8 +118,8 @@ else
     echo `date`
     if [ ! -s $outfile ]
     then
-	MSG="$outfile not created. sort step failed"
-	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	MSG="$outfile sort bam file not created. sort step failed during realignment"
+	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	exit 1;
     fi
     $samdir/samtools index $outfile

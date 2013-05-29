@@ -1,0 +1,1 @@
+FASTQ:hapmap=NA12878.R1.fastq	NA12878.R2.fastq

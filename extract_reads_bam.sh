@@ -1,31 +1,37 @@
 #!/bin/sh
+redmine=hpcbio-redmine@igb.illinois.edu
 
-if [ $# -le 3 -o $# -gt 6 ]
+if [ $# -le 7 -o $# -gt 10 ]
 then
-    MSG="parameter mismatch."
-    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$USER@HOST""
-    exit 1;
+        MSG="parameter mismatch"
+	echo -e "jobid:${PBS_JOBID}\nprogram=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine""
+	exit 1;
 else
 	set -x
 	echo `date`	
 	output=$1
 	bam=$2
 	run_info=$3
-	igv=$4
-        extradir=$5
-	if [ $6 ]
+        elog=$4
+        olog=$5
+        email=$6
+        qsubfile=$7
+	igv=$8
+        extradir=$9
+        LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
+	if [ ${10} ]
 	then
-		group=$6
+	    group=${10}
 	fi
 
         if [ ! -s $run_info ]
         then
-            MSG="$run_info file not found"
-	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$USER@HOST""
+            MSG="$run_info configuration file not found"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
 
-        email=$( cat $run_info | grep -w '^EMAIL' | cut -d '=' -f2)
+
         refdir=$( cat $run_info | grep -w '^REFGENOMEDIR' | cut -d '=' -f2)
 	refgen=$( cat $run_info | grep -w '^REFGENOME' | cut -d '=' -f2)
 	samtools=$( cat $run_info | grep -w '^SAMDIR' | cut -d '=' -f2)
@@ -35,54 +41,56 @@ else
         outputdir=$( cat $run_info | grep -w '^OUTPUTDIR' | cut -d '=' -f2)
 	delivery=$( cat $run_info | grep -w '^DELIVERYFOLDER' | cut -d '=' -f2)
 	analysis=$( cat $run_info | grep -w '^ANALYSIS' | cut -d '=' -f2| tr "[A-Z]" "[a-z]" )
+        javamodule=$( cat $run_info | grep -w '^JAVAMODULE' | cut -d '=' -f2)
 
-        #sanity check
         if [ ! -d $refdir ]
         then
             MSG="$refdir reference genome directory not found"
-	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
         if [ ! -s $refdir/$refgen ]
         then
             MSG="$refdir/$refgen reference genome  not found"
-	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
         if [ ! -d $samtools ]
         then
-            MSG="$samtools directory not found"
-	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+            MSG="$samtools samtools directory not found"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
         if [ ! -d $picard ]
         then
-            MSG="$picard directory not found"
-	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+            MSG="$picard picard directory not found"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
-        if [ ! -d $script_path ]
+        if [ -z $javamodule ]
         then
-            MSG="$r directory not found"
-	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+            MSG="Value for JAVAMODULE must be specified in configuration file"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
+        else
+            `/usr/local/modules-3.2.9.iforge/Modules/bin/modulecmd bash load $javamodule`
         fi
         if [ ! -d $outputdir ]
         then
-            MSG="$outputdir directory not found"
-	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+            MSG="$outputdir  output directory not found"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
         if [ ! -d $output ]
         then
-            MSG="$output directory not found"
-	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+            MSG="$output results directory not found"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
         if [ ! -s $output/$bam ]
         then
-            MSG="$output/$bam file not found"
-	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+            MSG="$output/$bam BAM file not found"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
         if [ ! -d $extradir ]
@@ -96,7 +104,6 @@ else
 	fi	
 	
         ref=$refdir/$refgen
-
 	chrs=`cat $ref.fai | cut -f1 | tr ":" "\n"`
 	i=1
 	for chr in $chrs
@@ -117,8 +124,8 @@ else
 	    $samtools/samtools view -b $output/$bam $chr > $output/$bam.$chr.bam
             if [ ! -s $output/$bam.$chr.bam ]
             then
-                MSG="$output/$bam.$chr.bam file not created"
-		echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+                MSG="Warning:$output/$bam.$chr.bam file for chr=$chr not created. extract reads failed"
+		echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
                 exit 1;
 	    fi
 	    $samtools/samtools index $output/$bam.$chr.bam
@@ -129,14 +136,12 @@ else
 	$samtools/samtools view -b -f 12 $output/$bam > $output/$bam.unmapped.bam
         if [ ! -s $output/$bam.unmapped.bam ]
         then
-	    MSG="$output/$bam.unmapped.bam file not created"
-	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+	    MSG="Warning: $output/$bam.unmapped.bam unmapped reads -file not created. extract reads failed"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
 	fi
 	$samtools/samtools index $output/$bam.unmapped.bam
 	input="$input INPUT=$output/$bam.unmapped.bam"
-
-
 
         java -Xmx6g -Xms512m -jar $picard/MergeSamFiles.jar $input \
         MAX_RECORDS_IN_RAM=null \
@@ -148,8 +153,8 @@ else
 
         if [ ! -s $output/$bam.extra.bam ]
         then
-	    MSG="merge bam files failed"
-	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+	    MSG="Warning: BAM file of extracted reads, step failed"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
         
@@ -158,7 +163,7 @@ else
         mv $output/$bam.unmapped* $extradir/
         mv $output/$bam.chr* $extradir/
 
-	if [ $6 ]
+	if [ $group ]
 	then
             echo "group info was passed as argument to this script"
 
@@ -178,15 +183,15 @@ else
 		$samtools/samtools view -b -r $sample $output/$bam.extra.bam > $output/$sample.extra.bam
                 if [ ! -s $output/$sample.extra.bam ]
                 then
-                    MSG="$output/$sample.extra.bam file not created. extract step failed."
-		    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+                    MSG="Warning: $output/$sample.extra.bam BAM file with extracted reads not created. extract reads failed."
+		    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		    exit 1;
                 fi
 		$samtools/samtools view -H $output/$sample.extra.bam | grep -E -v "$gr" | $samtools/samtools reheader - $output/$sample.extra.bam > $output/$sample.extra.re.bam
                 if [ ! -s $output/$sample.extra.re.bam ]
                 then
-                    MSG="$output/$sample.extra.re.bam file not created. extract step failed."
-		    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+                    MSG="Warning: $output/$sample.extra.re.bam new header of BAM file with extracted reads not created. extract reads failed."
+		    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		    exit 1;
                 fi
 		mv $output/$sample.extra.re.bam $output/$sample.extra.bam

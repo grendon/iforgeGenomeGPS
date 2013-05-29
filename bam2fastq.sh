@@ -3,11 +3,11 @@
 #  script to convert bam files back to fastq as pre requisite to alignment
 #
 ######################################
-	
+redmine=hpcbio-redmine@igb.illinois.edu
 if [ $# != 7 ];
 then
 	MSG= "parameter mismatch"
-        echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$USER@HOST""
+        echo -e "jobid:${PBS_JOBID}\nprogram=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine""
         exit 1;
 else					
 	set -x
@@ -20,13 +20,12 @@ else
         olog=$5
         email=$6
         qsubfile=$7
-        LOGS="qsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
+        LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
 
-        #sanity check
         if [ ! -s $runfile ]
         then
-	    MSG="$runfile file not found"
-            echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+	    MSG="$runfile configuration file not found"
+            echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
 
@@ -37,25 +36,34 @@ else
         multisample=$( cat $runfile | grep -w MULTISAMPLE | cut -d '=' -f2 )
         samples=$( cat $runfile | grep -w SAMPLENAMES | cut -d '=' -f2 )
         samplefileinfo=$( cat $runfile | grep -w SAMPLEFILENAMES | cut -d '=' -f2 )
-
+        javamodule=$( cat $runfile | grep -w JAVAMODULE | cut -d '=' -f2 )
         if [ ! -d $picardir ]
         then
-	    MSG="$picardir  directory not found"
-            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+	    MSG="PICARDIR=$picardir  directory not found"
+            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi      
         if [ ! -d $inputdir ]
         then
-	    MSG="$inputdir directory not found"
-            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+	    MSG="INPUTDIR=$inputdir directory not found"
+            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
         if [ ! -s $samplefileinfo ]
         then
-	    MSG="$samplefileinfo file not found"
-            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+	    MSG="SAMPLEFILENAMES=$samplefileinfo file not found"
+            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
+        if [ -z $javamodule ]
+        then
+	    MSG="Value for JAVAMODULE must be specified in configuration file"
+            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit 1;
+        else 
+            `/usr/local/modules-3.2.9.iforge/Modules/bin/modulecmd bash load $javamodule`
+        fi
+
 
         newnames=""
         cd $inputdir
@@ -68,15 +76,15 @@ else
 		prefix=$( echo $sampledetail | grep ^BAM | cut -d ':' -f2 | cut -d '=' -f2 )
                 if [ ! -s $inputdir/$dirname/$prefix ]
                 then
-                    MSG="$dirname/$prefix bam file not found. bam2fastq failed."
-            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+                    MSG="$dirname/$prefix BAM file not found. bam2fastq failed."
+            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		    exit 1;
                 fi
 
                 cd $inputdir/$dirname
 
-		R1=${prefix}_read1.fastq
-		R2=${prefix}_read2.fastq
+		R1=${prefix}_R1.fastq
+		R2=${prefix}_R2.fastq
 
 		if [ $paired == "1" ]
                 then
@@ -90,8 +98,8 @@ else
 		    echo `date`
 		    if [ ! -s $R1 -o ! -s $R2 ]
 		    then
-			MSG="$R1 $R2 files not created. bam2fastq failed."
-            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+			MSG="$R1 $R2 FASTQ files not created. bam2fastq failed."
+            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 			exit 1;
                     else
 			newnames="FASTQ:${dirname}=${R1} ${R2}\n$newnames"
@@ -106,8 +114,8 @@ else
 		    echo `date`
 		    if [ ! -s $R1 ]
 		    then
-			MSG="$R1 file not created. bam2fastq failed."
-            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s 'GGPS error notification' "$email""
+			MSG="$R1 FASTQ file not created. bam2fastq failed."
+            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 			exit 1;
                     else
 			newnames="FASTQ:${dirname}=${R1}\n$newnames"
@@ -128,4 +136,5 @@ else
         mv $samplefileinfo $newfilename
         oldname=$( echo  -e $newnames | sed "s/\n\n/\n/g" )
         echo $oldname >> $oldfilename
+	echo `date`
 fi

@@ -31,6 +31,7 @@ else
     refgenome=$( cat $runfile | grep -w REFGENOME | cut -d '=' -f2 )
     dup=$( echo $dupparms | tr "_" "\n" | grep -w dup | cut -d '=' -f2 )
     dupflag=$( echo $dupparms | tr "_" "\n" | grep -w flag | cut -d '=' -f2 )
+    javamodule=$( cat $runfile | grep -w JAVAMODULE | cut -d '=' -f2 )
 
     if [ ! -d $outputdir ]
     then
@@ -47,6 +48,15 @@ else
        echo "$samdir directory not found"
        exit 1;
     fi
+    if [ -z $javamodule ]
+    then
+       MSG="Value for JAVAMODULE must be specified in configuration file"
+       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'Mayo variant identification pipeline - Support #200' "$redmine,$email""
+       exit 1;
+    else
+	`/usr/local/modules-3.2.9.iforge/Modules/bin/modulecmd bash load $javamodule`
+    fi
+
     cd $outputdir
  
     # checking to see that all files to be merged exist

@@ -1,8 +1,10 @@
 #!/bin/sh
+redmine=hpcbio-redmine@igb.illinois.edu
+
 if [ $# != 10 ] 
 then
 	MSG="parameter mismatch."
-        echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$USER@HOST""
+        echo -e "jobid:${PBS_JOBID}\nprogram=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine""
         exit 1;
 else
     set -x
@@ -19,13 +21,13 @@ else
     email=$9
     scriptfile=$0
     qsubfile=${10}
-    LOGS="qsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
+    LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
 
     #sanity check
     if [ ! -s $runfile ]
     then
-       MSG="$runfile file not found"
-       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+       MSG="$runfile configuration file not found"
+       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
        exit 1;
     fi
 
@@ -35,6 +37,7 @@ else
     samdir=$( cat $runfile | grep -w SAMDIR | cut -d "=" -f2 )
     markdup=$( cat $runfile | grep -w ^MARKDUP | cut -d '=' -f2 )
     deldup=$( cat $runfile | grep -w ^REMOVE_DUP | cut -d '=' -f2 )
+    javamodule=$( cat $runfile | grep -w ^JAVAMODULE | cut -d '=' -f2 )
     sID=$sample
     sPU=$sample
     sSM=$sample
@@ -45,30 +48,37 @@ else
 
     if [ ! -d $outputdir ]
     then
-       MSG="$outputdir directory not found"
-       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+       MSG="$outputdir output directory not found"
+       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
        exit 1;
     fi
     if [ ! -d $picardir ]
     then
-       MSG="$picardir directory not found"
-       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+       MSG="$picardir picard directory not found"
+       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
        exit 1;
     fi
     if [ ! -d $samdir ]
     then
-       MSG="$samdir directory not found"
-       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+       MSG="$samdir samtools directory not found"
+       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
        exit 1;
     fi
-
+    if [ -z $javamodule ]
+    then
+       MSG="A value for JAVAMODULE has to be specified in configuration file."
+       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+       exit 1;
+    else
+        `/usr/local/modules-3.2.9.iforge/Modules/bin/modulecmd bash load $javamodule`
+    fi
 
     cd $outputdir
 
     if [ ! -s $inbamfile ]
     then
-       MSG="$outputdir/$inbamfile file not found"
-       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+       MSG="$outputdir/$inbamfile BAM file not found"
+       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
        exit 1;
     fi
   
@@ -87,8 +97,8 @@ else
 
     if [ ! -s $tmpfile ]
     then
-	MSG="$tmpfile file not created. add_readGroup step failed"
-	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	MSG="$tmpfile bam file not created. add_readGroup step failed"
+	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	exit 1;
     fi    
     echo `date`
@@ -105,8 +115,8 @@ else
     echo `date`
     if [ ! -s $sortedplain ]
     then
-	MSG="$sortedplain not created. sort step failed"
-       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	MSG="$sortedplain sorted bam file not created. sort step failed"
+       echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	exit 1;
     fi
 
@@ -134,8 +144,8 @@ else
 	echo `date`
 	if [ ! -s $outfilewdups ]
 	then
-	    MSG="$outfilewdups file not created. markDups step failed"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$outfilewdups file not created. markDuplicates step failed"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""	    
 	    exit 1;
 	fi
         echo "indexing bam file w marked duplicates"
@@ -164,8 +174,8 @@ else
 	echo `date`
 	if [ ! -s $outfilenodups ]
 	then
-	    MSG="$outfilenodups file not created. Remove markDups step failed"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$outfilenodups file not created. RemoveDuplicates step failed"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
 	fi
         echo "indexing bam file w removed duplicates"

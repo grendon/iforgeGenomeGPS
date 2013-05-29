@@ -1,9 +1,10 @@
 #!/bin/sh
+redmine=hpcbio-redmine@igb.illinois.edu
 
 if [ $# -gt 15 ]
 then
 	MSG="parameter mismatch."
-        echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s 'GGPS error notification' "$USER@HOST""
+        echo -e "jobid:${PBS_JOBID}\nprogram=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine""
         exit 1;
 else
 	set -x
@@ -49,11 +50,11 @@ else
            $alignerdir/novoalign -d $ref -f $R1 -o SAM $parameters $qual > $outputdir/$samfile
         fi
 
-        LOGS="qsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
+        LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
         if [ ! -s $outputdir/$samfile ]
         then
-           MSG="$outputdir/$samfile file not created. alignment failed"
-	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+           MSG="$outputdir/$samfile aligned file not created. alignment failed"
+	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
            exit 1;
         fi
         echo `date`
@@ -62,8 +63,8 @@ else
 	$samdir/samtools view -bS -o $bamfile $samfile
 	if [ ! -s $bamfile ]
 	then
-	    MSG="$outputdir/$bamfile file not created. sam2bam step failed."
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s 'GGPS error notification' "$email""
+	    MSG="$outputdir/$bamfile BAM file not created. sam2bam step failed during alignment."
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
 	fi       
         echo `date`
