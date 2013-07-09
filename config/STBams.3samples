@@ -1,0 +1,5 @@
+BAM:sampleA=/scratch/users/rendong/FastqSynthetic_alignOnly_onesampleBWA_OneNode_july5/align/sampleA/sampleA.wdups.sorted.bam
+BAM:normal=/scratch/users/rendong/FastqSynthetic_alignOnly_multsampleNOVO_OneNode_july5/align/normal/normal.wdups.sorted.bam
+BAM:tumor=/scratch/users/rendong/FastqSynthetic_alignOnly_multsampleNOVO_OneNode_july5/align/tumor/tumor.wdups.sorted.bam
+
+

@@ -1,0 +1,2 @@
+FASTQ:normal=/projects/mayo/MayoTestData/SyntheticTiny/normal_1.fq /projects/mayo/MayoTestData/SyntheticTiny/normal_2.fq
+FASTQ:tumor=/projects/mayo/MayoTestData/SyntheticTiny/tumor_1.fq /projects/mayo/MayoTestData/SyntheticTiny/tumor_2.fq

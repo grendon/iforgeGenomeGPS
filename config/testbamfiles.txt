@@ -1,0 +1,3 @@
+FASTQ:chr1.realrecal.output.bam=/scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/chr1.realrecal.output.bam_R1.17307.fastq /scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/chr1.realrecal.output.bam_R2.17307.fastq
+FASTQ:chr4.realrecal.output.bam=/scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/chr4.realrecal.output.bam_R1.22500.fastq /scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/chr4.realrecal.output.bam_R2.22500.fastq
+

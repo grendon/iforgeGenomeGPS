@@ -1,0 +1,2 @@
+BAM:SteveHart1=/projects/mayo/devscripts_lsm_Jun12_2013/BamOnly/s_534494.igv-sorted.bam
+BAM:SteveHart2=/projects/mayo/devscripts_lsm_Jun12_2013/BamOnly/s_FCP672.igv-sorted.bam

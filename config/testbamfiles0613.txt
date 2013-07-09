@@ -1,0 +1,4 @@
+BAM:MULTISOURCE1=/projects/mayo/devscripts_lsm_Jun12_2013/testdata/c_chr1.bam
+BAM:MULTISOURCE2=/projects/mayo/devscripts_lsm_Jun12_2013/testdata/c_chr3.bam
+BAM:MULTISOURCE3=/projects/mayo/devscripts_lsm_Jun12_2013/testdata/c_chr4.bam
+

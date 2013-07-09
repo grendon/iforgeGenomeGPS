@@ -1,0 +1,4 @@
+/scratch/users/rendong/Synthetic_4samples_bwa_run3_qhold/align/normal/normal_1.wdups.sorted.bam
+/scratch/users/rendong/Synthetic_4samples_bwa_run3_qhold/align/tumor/tumor_2.wdups.sorted.bam
+/scratch/users/rendong/Synthetic_4samples_bwa_run3_qhold/align/sampleA/sampleA_3.wdups.sorted.bam
+/scratch/users/rendong/Synthetic_4samples_bwa_run3_qhold/align/sampleB/sampleB_4.wdups.sorted.bam

@@ -1,0 +1,5 @@
+FASTQ:tumor=/scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/tumor_r1.fastq /scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/tumor_r2.fastq
+FASTQ:sampleB=/scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/sampleB_r1.fastq /scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/sampleB_r2.fastq
+FASTQ:sampleA=/scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/sampleA_r1.fastq /scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/sampleA_r2.fastq
+FASTQ:normal=/scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/normal_r1.fastq /scratch/users/rendong/Synthetic_4samples_realignonly_run1/realign/normal_r2.fastq
+

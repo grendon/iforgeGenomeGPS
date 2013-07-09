@@ -1,0 +1,87 @@
+## paths to input output and tools
+INPUTDIR=
+OUTPUTDIR=yourpathgoeshere
+SAMPLEDIR=
+SAMPLEFILENAMES=/projects/mayo/devscripts/config/FastqInput.3samples.syntheticTiny
+REFGENOMEDIR=/projects/mayo/reference
+REFGENOME=mayo_novo/allchr.fa
+DBSNP=mayo_dbsnp/hg19/dbsnp_135.hg19.vcf.gz
+KGENOME=kGenome/hg19/kgenome.hg19.vcf
+ONTARGET=/projects/mayo/reference/agilentOnTarget
+NOVOINDEX=mayo_novo/allchr.nix
+BWAINDEX=mayo_novo/allchr.fa
+NOVODIR=/projects/mayo/builds/novocraft
+BWADIR=/projects/mayo/builds/bwa-0.5.9
+PICARDIR=/projects/mayo/builds/picard-tools-1.77
+GATKDIR=/projects/mayo/builds/GATK-1.6-9
+SAMDIR=/projects/mayo/builds/samtools-0.1.18
+FASTQCDIR=/projects/mayo/builds/FastQC
+SCRIPTDIR=/projects/mayo/devscripts
+SNVMIXDIR=/projects/mayo/builds/SNVMix2-0.11.8-r5
+DELIVERYFOLDER=delivery
+IGVDIR=IGV_BAM
+
+## pbs resources
+EMAIL=youremail@illinois.edu
+PBSPROJECTID=bf0
+PBSNODES=1
+PBSTHREADS=16
+PBSQUEUEEXOME=normal
+PBSQUEUEWGEN=long
+PBSCPUALIGNWGEN=240:00:00
+PBSCPUALIGNEXOME=3:00:00
+PBSCPUOTHERWGEN=240:00:00
+PBSCPUOTHEREXOME=3:00:00
+
+
+## other parameters
+JAVAMODULE=java-1.6
+SORTMERGETOOL=NOVOSORT
+EPILOGUE=/projects/mayo/devscripts/epilogue.user
+SKIPVCALL=NO
+PAIRED=1
+READLENGTH=100
+CHRINDEX=1:2:3:4:5:6:7:8:9:10:11:12:13:14:15:16:17:18:19:20:21:22:X:Y:M
+SAMPLEID=synthetic
+SAMPLELB=hg19
+SAMPLEPL=illumina
+SAMPLEPU=synthetic
+SAMPLESM=synthetic
+SAMPLECN=Mayo
+TYPE=exome
+ANALYSIS=realign
+DISEASE=cancer
+MULTISAMPLE=YES
+SAMPLEINFORMATION=steve hart multisamples
+SAMPLENAMES=tumor normal sampleA
+GROUPNAMES=NA
+LABINDEX=-:-
+LANEINDEX=
+GENOMEBUILD=hg19
+ALIGNER=BWA
+VARIANT_TYPE=BOTH
+SNV_CALLER=GATK
+SOMATIC_CALLER=SOMATICSNIPPER
+EMIT_ALL_SITES=YES
+DEPTH_FILTER=0
+PEDIGREE=NA
+UNIFIEDGENOTYPERPARMS=-maxAlleles 5
+NOVOPARAMS=-g 60 -x 2 -i PE 425,80 -r Random --hdrhd off -v 120 -c 15
+BWAPARAMS=-l 32 -t 15
+BLATPARAMS=-w 50 -m 70 -t 90
+REALIGNPARMS=
+FASTQCFLAG=NO
+FASTQCPARMS=-t 15 -q
+MARKDUP=YES
+REMOVE_DUP=NO
+REORDERSAM=NO
+RESORTBAM=NO
+REVERTSAM=0
+PROVENANCE=MULTI_SOURCE
+BAM2FASTQFLAG=NO
+BAM2FASTQPARMS=INCLUDE_NON_PF_READS=true
+REALIGNORDER=1
+SNVMIX2PARMS=
+SNVMIX2FILTER=-p 0.8
+TARGETTED=NO
+REMOVETEMPFILES=NO

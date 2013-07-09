@@ -1,0 +1,84 @@
+## paths to input output and tools
+INPUTDIR=/projects/mayo/MayoTestData/SyntheticTiny
+OUTPUTDIR=/scratch/users/rendong/Synthetic_4samples_alignonly_run1
+SAMPLEDIR=/projects/mayo/MayoTestData/SyntheticTiny
+SAMPLEFILENAMES=/ui/mayo/rendong/devscripts/config/ExomeSyntheticMultisamples.txt
+REFGENOMEDIR=/projects/mayo/reference
+REFGENOME=mayo_novo/allchr.fa
+DBSNP=mayo_dbsnp/hg19/dbsnp_135.hg19.vcf.gz
+KGENOME=kGenome/hg19/kgenome.hg19.vcf
+ONTARGET=onTarget/AgilentV4+UTRs_ucsc_refflat_hg19_2011-01-24.10bp.merge.bed
+NOVOINDEX=mayo_novo/allchr.nix
+BWAINDEX=mayo_novo/allchr.fa
+NOVODIR=/projects/mayo/builds/novocraft
+BWADIR=/projects/mayo/builds/bwa-0.5.9
+PICARDIR=/projects/mayo/builds/picard-tools-1.77
+GATKDIR=/projects/mayo/builds/GATK-1.6-9
+SAMDIR=/projects/mayo/builds/samtools-0.1.18
+FASTQCDIR=/projects/mayo/builds/FastQC
+SCRIPTDIR=/ui/mayo/rendong/devscripts
+SNVMIXDIR=/projects/mayo/builds/SNVMix2-0.11.8-r5
+DELIVERYFOLDER=delivery
+IGVDIR=IGV_BAM
+
+## pbs resources
+EMAIL=grendon@illinois.edu
+PBSPROJECTID=bf0
+PBSNODES=1
+PBSTHREADS=16
+PBSQUEUEEXOME=normal
+PBSQUEUEWGEN=long
+PBSCPUALIGNWGEN=240:00:00
+PBSCPUALIGNEXOME=6:00:00
+PBSCPUOTHERWGEN=240:00:00
+PBSCPUOTHEREXOME=6:00:00
+
+
+## other parameters
+JAVAMODULE=java-1.6
+SORTMERGETOOL=NOVOSORT
+EPILOGUE=/projects/mayo/scripts/epilogue.user
+SKIPVCALL=NO
+PAIRED=1
+READLENGTH=100
+CHRINDEX=1:2:3:4
+SAMPLEID=synthetic
+SAMPLELB=hg19
+SAMPLEPL=illumina
+SAMPLEPU=synthetic
+SAMPLESM=synthetic
+SAMPLECN=Mayo
+TYPE=exome
+ANALYSIS=alignment
+DISEASE=cancer
+MULTISAMPLE=YES
+SAMPLEINFORMATION=synthetic multisamples
+SAMPLENAMES=normal tumor sampleA sampleB
+GROUPNAMES=NA
+LABINDEX=-:-
+LANEINDEX=1:2
+GENOMEBUILD=hg19
+ALIGNER=BWA
+VARIANT_TYPE=BOTH
+SNV_CALLER=GATK
+SOMATIC_CALLER=SOMATICSNIPPER
+EMIT_ALL_SITES=YES
+DEPTH_FILTER=0
+PEDIGREE=NA
+UNIFIEDGENOTYPERPARMS=-maxAlleles 5
+NOVOPARAMS=-g 60 -x 2 -i PE 425,80 -r Random --hdrhd off -v 120 -c 16
+BWAPARAMS=-l 32 -t 16
+BLATPARAMS=-w 50 -m 70 -t 90
+REALIGNPARMS=
+FASTQCFLAG=NO
+FASTQCPARMS=-t 15 -q
+MARKDUP=YES
+REMOVE_DUP=NO
+REORDERSAM=NO
+RESORTBAM=NO
+BAM2FASTQFLAG=NO
+BAM2FASTQPARMS=INCLUDE_NON_PF_READS=true
+REALIGNORDER=1
+SNVMIX2PARMS=
+SNVMIX2FILTER=-p 0.8
+TARGETTED=NO
