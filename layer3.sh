@@ -21,13 +21,13 @@ else
            echo -e "program=$scriptfile stopped at line=$LINENO. Reason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
            exit 1;
         fi
-
 	outputdir=$( cat $runfile | grep -w OUTPUTDIR | cut -d '=' -f2 )
         email=$( cat $runfile | grep -w EMAIL | cut -d '=' -f2 )
         pbsprj=$( cat $runfile | grep -w PBSPROJECTID | cut -d '=' -f2 )
         epilogue=$( cat $runfile | grep -w EPILOGUE | cut -d '=' -f2 )
         type=$( cat $runfile | grep -w TYPE | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
         scriptdir=$( cat $runfile | grep -w SCRIPTDIR | cut -d '=' -f2 )
+        samplefileinfo=$( cat $runfile | grep -w SAMPLEFILENAMES | cut -d '=' -f2 )
         if [ -z $epilogue ]
         then
 	    MSG="Invalid value for parameter EPILOGUE=$epilogue  in configuration file"
@@ -75,6 +75,14 @@ else
         fi
         `chmod -R 770 $outputdir/`
         `chmod 750 $epilogue`
+	`cp $runfile $outputdir/runfile.tmp.txt`
+        runfile=$outputdir/runfile.txt
+        oldrun=$outputdir/runfile.tmp.txt
+        dirsamples=`dirname $samplefileinfo`
+        samplename=`basename $samplefileinfo`
+        newsamplename=$outputdir/$samplename
+        `cp $samplefileinfo $newsamplename`
+        `perl $scriptdir/lned.pl $oldrun $runfile SAMPLEFILENAMES "$newsamplename"`
 
         outputlogs=$outputdir/logs
 	echo "launching the main pipeline"
@@ -94,7 +102,6 @@ else
         `chmod a+r $qsub1`               
         jobid=`qsub $qsub1`
         echo $jobid >> $outputlogs/MAINpbs
-	`cp $runfile $outputdir/runfile.txt`
         echo `date`
 
         MSG="GGPS pipeline started on iforge by username:$USER at: "$( echo `date` )

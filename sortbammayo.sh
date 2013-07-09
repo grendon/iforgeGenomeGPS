@@ -31,12 +31,12 @@ else
        exit 1;
     fi
 
-    tmpfile=rg.$inbamfile
-    sample=`basename $outputdir`
+    sample=`basename $outputdir .bam`
     picardir=$( cat $runfile | grep -w PICARDIR | cut -d "=" -f2 )
     samdir=$( cat $runfile | grep -w SAMDIR | cut -d "=" -f2 )
     markdup=$( cat $runfile | grep -w ^MARKDUP | cut -d '=' -f2 )
     deldup=$( cat $runfile | grep -w ^REMOVE_DUP | cut -d '=' -f2 )
+    revertsam=$( cat $runfile | grep -w ^REVERTSAM | cut -d '=' -f2 )
     javamodule=$( cat $runfile | grep -w ^JAVAMODULE | cut -d '=' -f2 )
     sID=$sample
     sPU=$sample
@@ -82,18 +82,45 @@ else
        exit 1;
     fi
   
+    # step 1: checking to see if reversam needs to be run
 
-    # step 1: checking to see if already sorted and w RG info
-
-
-    java -Xmx6g -Xms512m -jar $picardir/AddOrReplaceReadGroups.jar \
-	INPUT=$inbamfile \
-	OUTPUT=$tmpfile \
-	MAX_RECORDS_IN_RAM=null \
-	TMP_DIR=$outputdir \
-	SORT_ORDER=unsorted \
-	$RGparms \
+    bamfile=`basename $inbamfile`
+    tmpfile=temp.$bamfile
+    tmpfilerevertsam=tmprsam.$bamfile
+    if [ $revertsam == "1" ]
+    then
+        echo "revertsam then addreadgroup..."
+	java -Xmx6g -Xms512m -jar $picardir/RevertSam.jar \
+        COMPRESSION_LEVEL=0 \
+        INPUT=$inbamfile \
+        OUTPUT=$tmpfilerevertsam \
 	VALIDATION_STRINGENCY=SILENT
+
+	if [ ! -s $tmpfilerevertsam ]
+	then
+	    MSG="$tmpfilerevertsam bam file not created. revertsam step failed"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit 1;
+	fi    
+	java -Xmx6g -Xms512m -jar $picardir/AddOrReplaceReadGroups.jar \
+	    INPUT=$tmpfilerevertsam \
+	    OUTPUT=$tmpfile \
+	    MAX_RECORDS_IN_RAM=null \
+	    TMP_DIR=$outputdir \
+	    SORT_ORDER=unsorted \
+	    $RGparms \
+	    VALIDATION_STRINGENCY=SILENT
+    else
+        echo "just addreadgroup"
+	java -Xmx6g -Xms512m -jar $picardir/AddOrReplaceReadGroups.jar \
+	    INPUT=$inbamfile \
+	    OUTPUT=$tmpfile \
+	    MAX_RECORDS_IN_RAM=null \
+	    TMP_DIR=$outputdir \
+	    SORT_ORDER=unsorted \
+	    $RGparms \
+	    VALIDATION_STRINGENCY=SILENT
+    fi
 
     if [ ! -s $tmpfile ]
     then

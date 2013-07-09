@@ -33,19 +33,23 @@ else
         scriptdir=$( cat $runfile | grep -w SCRIPTDIR | cut -d '=' -f2 )
         refgenome=$( cat $runfile | grep -w REFGENOME | cut -d '=' -f2 )
         type=$( cat $runfile | grep -w TYPE | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
+        analysis=$( cat $runfile | grep -w ANALYSIS | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
         igvdir=$( cat $runfile | grep -w IGVDIR | cut -d '=' -f2 )
         extradir=$outputdir/extractreads
-        realrecalflag=$( cat $runfile | grep -w REALIGNORDER | cut -d '=' -f2 )
+        realrecalflag=$( cat $runfile | grep -w REALIGNORDER | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
         paired=$( cat $runfile | grep -w PAIRED | cut -d '=' -f2 )
         inputdir=$( cat $runfile | grep -w SAMPLEDIR | cut -d '=' -f2 )
         samplefileinfo=$( cat $runfile | grep -w SAMPLEFILENAMES | cut -d '=' -f2 )
         rlen=$( cat $runfile | grep -w READLENGTH | cut -d '=' -f2 )
-        multisample=$( cat $runfile | grep -w MULTISAMPLE | cut -d '=' -f2 )
+        multisample=$( cat $runfile | grep -w MULTISAMPLE | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
         samples=$( cat $runfile | grep -w SAMPLENAMES | cut -d '=' -f2 | tr ":" "\n")
         region=$( cat $runfile | grep -w CHRINDEX | cut -d '=' -f2 )
-        resortflag=$( cat $runfile | grep -w RESORTBAM | cut -d '=' -f2 )
+        resortflag=$( cat $runfile | grep -w RESORTBAM | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
+        revertsam=$( cat $runfile | grep -w REVERTSAM | cut -d '=' -f2  )
         indices=$( echo $region | sed 's/^/chr/' | sed 's/:/ chr/g' )
         epilogue=$( cat $runfile | grep -w EPILOGUE | cut -d '=' -f2 )
+        picardir=$( cat $runfile | grep -w PICARDIR | cut -d '=' -f2 )
+        samdir=$( cat $runfile | grep -w SAMDIR | cut -d '=' -f2 )
         output_logs=$outputdir/logs
 
 
@@ -84,6 +88,12 @@ else
 	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
            exit 1;
         fi
+        if [ ! -d $picardir ]
+        then
+           MSG="$picardir picard directory was not found"
+	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+           exit 1;
+        fi
         if [ ! -s $samplefileinfo ]
         then
            MSG="SAMPLEFILENAMES=$samplefileinfo file not found"
@@ -98,161 +108,6 @@ else
         then
 	    mkdir  $output_logs
         fi  
-        
-        ## preprocessing step; only when alignment was not performed inhouse
-        listdirs=":"
-        if [ $resortflag == "YES" ]
-        then
-            echo "alignment was NOT done inhouse. Checking input files"
-            numsamples=0
-            for name in $samples
-            do
-		countnames=$( cat $samplefileinfo | grep $name -c )
-		if [ $countnames -lt 1  ]
-                then
-		    MSG="Mo samples found in SAMPLEFILENAMES=$samplefileinfo"
-	            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-		    exit 1;
-                fi
-                let numsamples+=1
-            done
-            if [ $numsamples -gt 1 -a $multisample == "YES" ]
-	    then
-		echo "multiple samples were aligned"
-	    else
-		if [ $numsamples -eq 1 -a $multisample == "NO" ]
-		then
-		    echo "single sample was aligned."
-		else
-		    MSG="mismatch between number of samples found=$numsamples  and value of parameter MULTISAMPLE=$multisample in configuration file"
-	            echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-		    exit 1;
-		fi
-            fi
-
-            counter=0
-            while read sampledetail
-            do
-                echo "processing next line in file ..."
-		len=`expr ${#sampledetail}`
-		if [ $len -eq 0 ]
-		then
-		    echo "line is empty; nothing to do. $sampledetail"
-                else
-		    echo "preprocessing for realignment $sampledetail"
-                    echo "expected format--> BAM:sample_name=bamfilename.bam"
-
-		    sampledirname=$( echo $sampledetail | grep ^BAM | cut -d ':' -f2 | cut -d '=' -f1 )
-		    samplename=$( echo $sampledetail | grep ^BAM | cut -d ':' -f2 | cut -d '=' -f2 )
-
-                    len1=`expr length ${sampledirname}`
-                    if [ $len1 -lt 1 ]
-                    then
-			MSG="$sampledirname parsing file failed. realignment failed."
-	                echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-			exit 1;
-                    fi
-                    cd $inputdir
-                    bamfile=$( echo $samplename )
-                    lenbam=`expr length $bamfile`
-                    if [ $lenbam -lt 1 ]
-                    then
-			MSG="$bamfile parsing file failed. realignment failed."
-	                echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-			exit 1;
-                    fi
-		
-		    if [ ! -s $inputdir/$bamfile ]
-		    then
-			MSG="$inputdir/$bamfile input bam file not found"
-	                echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-			exit;
-		    fi
-
-                    prefix=`basename $samplename .wrg.sorted.bam`
-		    outputalign=$outputdir/align/$sampledirname
-		    outputlogs=$output_logs/align/$sampledirname
-
-                    if [ ! -d $outputalign ]
-                    then
-			mkdir -p $outputalign
-                        let counter+=1
-                        tmpbamfile=tmp.${prefix}_$counter.sorted.bam
-			sortedplain=${prefix}_$counter.wrg.sorted.bam
-			sorted=${prefix}_$counter.wdups.sorted.bam
-			sortednodups=${prefix}_$counter.nodups.sorted.bam
-			cd $outputalign
-			cp $inputdir/$bamfile $tmpbamfile
-			if [ ! -d $outputlogs ]
-			then
-			    mkdir -p $outputlogs
-                        else
-                            `rm -r $outputlogs/*`
-			fi
-                    else
-                        let counter+=1
-                        tmpbamfile=tmp.${prefix}_$counter.sorted.bam
-			sortedplain=${prefix}_$counter.wrg.sorted.bam
-			sorted=${prefix}_$counter.wdups.sorted.bam
-			sortednodups=${prefix}_$counter.nodups.sorted.bam
-			cd $outputalign
-			cp $inputdir/$bamfile $tmpbamfile
-		   fi
-
-		   qsub1=$outputlogs/qsub.sortmayo.$counter
-		   echo "#PBS -V" > $qsub1
-		   echo "#PBS -A $pbsprj" >> $qsub1
-		   echo "#PBS -N sortm_$counter" >> $qsub1
-                   echo "#PBS -l epilogue=$epilogue" >> $qsub1
-		   echo "#PBS -l walltime=$pbscpu" >> $qsub1
-		   echo "#PBS -l nodes=1:ppn=16" >> $qsub1
-		   echo "#PBS -o $outputlogs/log.sortmayo.$counter.ou" >> $qsub1
-		   echo "#PBS -e $outputlogs/log.sortmayo.$counter.in" >> $qsub1
-		   echo "#PBS -q $pbsqueue" >> $qsub1
-		   echo "#PBS -m ae" >> $qsub1
-		   echo "#PBS -M $email" >> $qsub1
-		   echo "$scriptdir/sortbammayo.sh $outputalign $tmpbamfile $sortedplain $sorted $sortednodups $runfile $outputlogs/log.sortmayo.$counter.in $outputlogs/log.sortmayo.$counter.ou $email $outputlogs/qsub.sortmayo.$counter" >> $qsub1
-		   `chmod a+r $qsub1`
-                   sortid=`qsub $qsub1`
-               	   echo $sortid >> $outputlogs/SORTEDmayo
-		   echo "extracting reads"
-		   qsub2=$outputlogs/qsub.extractreadsbam.$counter
-		   echo "#PBS -V" > $qsub2
-		   echo "#PBS -A $pbsprj" >> $qsub2
-		   echo "#PBS -N extrbam$counter" >> $qsub2
-                   echo "#PBS -l epilogue=$epilogue" >> $qsub2
-		   echo "#PBS -l walltime=$pbscpu" >> $qsub2
-		   echo "#PBS -l nodes=1:ppn=16" >> $qsub2
-		   echo "#PBS -o $outputlogs/log.extractreadsbam.$counter.ou" >> $qsub2
-		   echo "#PBS -e $outputlogs/log.extractreadsbam.$counter.in" >> $qsub2
-		   echo "#PBS -q $pbsqueue" >> $qsub2
-		   echo "#PBS -m ae" >> $qsub2
-		   echo "#PBS -M $email" >> $qsub2
-                   echo "#PBS -W depend=afterok:$sortid" >> $qsub2
-                   echo "$scriptdir/extract_reads_bam.sh $outputalign $sorted $runfile $outputlogs/log.extractreadsbam.$counter.in $outputlogs/log.extractreadsbam.$counter.ou $outputlogs/qsub.extractreadsbam.$counter $igvdir $extradir" >> $qsub2
-		   `chmod a+r $qsub2`               
-                   `qsub $qsub2 >> $output_logs/EXTRACTREADSpbs`
-
-		fi
-	    done < $samplefileinfo
-            cat $outputlogs/SORTEDmayo >> $output_logs/REALSORTEDpbs
-            mv $outputlogs/SORTEDmayo $output_logs/ALN_MAYO_jobids
-            alndirs=$( ls -1 $outputdir/align )
-            JOBSmayo=$( cat $output_logs/ALN_MAYO_jobids | sed "s/\.[a-z]*//g" | tr "\n" ":" | sed "s/::/:/g" )
-        else
-            echo "alignment was done inhouse. no need to resort"
-            echo "We need to wait until the alignment jobs enter the queue"
-
-            while [ ! -s $output_logs/ALN_NCSA_jobids ]
-            do
-		`sleep 60s`
-            done
-            alndirs=$( ls -1 $outputdir/align )
-            JOBSncsa=$( cat $output_logs/ALN_NCSA_jobids | sed "s/\.[a-z]*//g" | tr "\n" ":" | sed "s/::/:/g" )
-        fi
-
-        ## preprocessing is done. Now we can realign and recalibrate bam files
-        echo "preprocessing of bam files is done. ready to realign"
 
         realigndir=$outputdir/realign
         realignlogdir=$outputdir/logs/realign
@@ -276,29 +131,223 @@ else
 	    echo "realign-recalibration order flag is not set properly. Default value [1] will be assiged to it"
             realrecalflag="1"
         fi
+        
+        ## preprocessing step; only when alignment was not performed inhouse
+        listfiles="";
+        sep=":";
+        JOBSmayo=""
+        JOBSncsa=""
 
-	qsub3=$realignlogdir/qsub.recalibration
+        if [ $resortflag == "YES" ]
+        then
+            echo "alignment was NOT done inhouse. Need to resort bam files. Checking input files"
+
+            counter=0
+            while read sampledetail
+            do
+                echo "processing next line in file ..."
+		len=`expr length ${sampledetail}`
+		if [ $len -eq 0 ]
+		then
+		    echo "line is empty; nothing to do. $sampledetail"
+                else
+		    echo "preprocessing for realignment $sampledetail"
+                    echo "expected format--> BAM:sample_name=bamfilename.bam"
+
+		    samplename=$( echo $sampledetail | cut -d '=' -f2 )
+                    sampledirname=`dirname $samplename`
+                    len1=`expr length ${sampledirname}`
+                    if [ $len1 -lt 1 ]
+                    then
+			MSG="$sampledirname parsing file failed. realignment failed."
+	                echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+			exit 1;
+                    fi
+
+                    bamfile=$( echo $samplename )
+                    lenbam=`expr length $bamfile`
+                    if [ $lenbam -lt 1 ]
+                    then
+			MSG="$bamfile parsing file failed. realignment failed."
+	                echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+			exit 1;
+                    fi
+		
+		    if [ ! -s $bamfile ]
+		    then
+			MSG="$bamfile input bam file not found"
+	                echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+			exit;
+		    fi
+
+                    prefix=`basename $samplename .wrg.sorted.bam`
+		    outputalign=$outputdir/align/$prefix
+		    outputlogs=$output_logs/align/$prefix
+
+                    if [ ! -d $outputalign ]
+                    then
+			mkdir -p $outputalign
+                        let counter+=1
+                        tmpbamfile=$bamfile
+			sortedplain=${prefix}_$counter.wrg.sorted.bam
+			sorted=${prefix}_$counter.wdups.sorted.bam
+			sortednodups=${prefix}_$counter.nodups.sorted.bam
+			if [ ! -d $outputlogs ]
+			then
+			    mkdir -p $outputlogs
+                        else
+                            `rm -r $outputlogs/*`
+			fi
+                    else
+                        let counter+=1
+                        tmpbamfile=$bamfile
+			sortedplain=${prefix}_$counter.wrg.sorted.bam
+			sorted=${prefix}_$counter.wdups.sorted.bam
+			sortednodups=${prefix}_$counter.nodups.sorted.bam
+		   fi
+
+		   qsub1=$outputlogs/qsub.sortbammayo.$prefix
+		   echo "#PBS -V" > $qsub1
+		   echo "#PBS -A $pbsprj" >> $qsub1
+		   echo "#PBS -N sortbamayo_${prefix}" >> $qsub1
+                   echo "#PBS -l epilogue=$epilogue" >> $qsub1
+		   echo "#PBS -l walltime=$pbscpu" >> $qsub1
+		   echo "#PBS -l nodes=1:ppn=16" >> $qsub1
+		   echo "#PBS -o $outputlogs/log.sortbammayo.${prefix}.ou" >> $qsub1
+		   echo "#PBS -e $outputlogs/log.sortbammayo.${prefix}.in" >> $qsub1
+		   echo "#PBS -q $pbsqueue" >> $qsub1
+		   echo "#PBS -m ae" >> $qsub1
+		   echo "#PBS -M $email" >> $qsub1
+		   echo "$scriptdir/sortbammayo.sh $outputalign $tmpbamfile $sortedplain $sorted $sortednodups $runfile $outputlogs/log.sortbammayo.${prefix}.in $outputlogs/log.sortbammayo.${prefix}.ou $email $outputlogs/qsub.sortbammayo.${prefix}" >> $qsub1
+		   `chmod a+r $qsub1`
+                   sortid=`qsub $qsub1`
+                   `qhold -h u $sortid`
+               	   echo $sortid >> $output_logs/REALSORTEDMAYOpbs
+		   echo "extracting reads"
+		   qsub2=$outputlogs/qsub.extractreadsbam.$prefix
+		   echo "#PBS -V" > $qsub2
+		   echo "#PBS -A $pbsprj" >> $qsub2
+		   echo "#PBS -N extrbam${prefix}" >> $qsub2
+                   echo "#PBS -l epilogue=$epilogue" >> $qsub2
+		   echo "#PBS -l walltime=$pbscpu" >> $qsub2
+		   echo "#PBS -l nodes=1:ppn=16" >> $qsub2
+		   echo "#PBS -o $outputlogs/log.extractreadsbam.${prefix}.ou" >> $qsub2
+		   echo "#PBS -e $outputlogs/log.extractreadsbam.${prefix}.in" >> $qsub2
+		   echo "#PBS -q $pbsqueue" >> $qsub2
+		   echo "#PBS -m ae" >> $qsub2
+		   echo "#PBS -M $email" >> $qsub2
+                   echo "#PBS -W depend=afterok:$sortid" >> $qsub2
+                   echo "$scriptdir/extract_reads_bam.sh $outputalign $sorted $runfile $outputlogs/log.extractreadsbam.${prefix}.in $outputlogs/log.extractreadsbam.${prefix}.ou $outputlogs/qsub.extractreadsbam.$prefix $igvdir $extradir" >> $qsub2
+		   `chmod a+r $qsub2`               
+                   extraid=`qsub $qsub2`
+                   `qhold -h u $extraid`
+                   echo $extraid >> $output_logs/EXTRACTREADSpbs
+                   listfiles=$outputalign/$sorted${sep}${listfiles}
+		fi
+	    done < $samplefileinfo
+            cp $output_logs/REALSORTEDMAYOpbs $output_logs/ALN_MAYO_jobids
+            JOBSmayo=$( cat $output_logs/ALN_MAYO_jobids | sed "s/\.[a-z]*//g" | tr "\n" ":" | sed "s/::/:/g" )
+        else
+            if [ $analysis == "REALIGNONLY" -o $analysis == "REALIGN_ONLY" ]
+            then
+		echo "alignment was NOT done inhouse. BAM files will not be resorted. Skipping preprocessing"
+                if [ $revertsam != "1" ]
+                then
+                    echo "input is aligned bam that is suitable for realignment and recalibration..."
+                    while read sampledetail
+                    do
+			bam=$( echo $sampledetail | cut -d "=" -f2 )
+			listfiles=${bam}${sep}${listfiles}
+		    done < $samplefileinfo
+                else
+                    echo "revertsam needs to be run on input bams..."
+                    while read sampledetail
+                    do
+                      if [ `expr length ${sampledetail}` -gt 0 ]
+                      then
+			bamfile=$( echo $sampledetail | cut -d "=" -f2 )
+                        prefix=`basename $bamfile .bam`
+                        dirname=`dirname ${bamfile}`
+                        revbamfile=$dirname/${prefix}_revsam
+
+			listfiles=${revbamfile}${sep}${listfiles}
+			qsub2=$output_logs/qsub.revertinputbam.$prefix
+			echo "#PBS -V" > $qsub2
+			echo "#PBS -A $pbsprj" >> $qsub2
+			echo "#PBS -N revertinputbam_${prefix}" >> $qsub2
+			echo "#PBS -l epilogue=$epilogue" >> $qsub2
+			echo "#PBS -l walltime=$pbscpu" >> $qsub2
+			echo "#PBS -l nodes=1:ppn=16" >> $qsub2
+			echo "#PBS -o $output_logs/log.revertinputbam.${prefix}.ou" >> $qsub2
+			echo "#PBS -e $output_logs/log.revertinputbam.${prefix}.in" >> $qsub2
+			echo "#PBS -q $pbsqueue" >> $qsub2
+			echo "#PBS -m ae" >> $qsub2
+			echo "#PBS -M $email" >> $qsub2
+			echo "$scriptdir/revertinputbam.sh $bamfile $revbamfile $picardir $samdir $output_logs/log.revertinputbam.${prefix}.in $output_logs/log.revertinputbam.${prefix}.ou $email $output_logs/qsub.revertinputbam.$prefix" >> $qsub2
+			`chmod a+r $qsub2`
+			revbamid=`qsub $qsub2`
+			`qhold -h u $revbamid`
+			echo $revbamid >> $output_logs/REVERTINPUTBAMpbs
+                       else
+                        echo "skip empty line"
+                      fi
+                    done < $samplefileinfo
+		    JOBSmayo=$( cat $output_logs/REVERTINPUTBAMpbs | sed "s/\.[a-z]*//g" | tr "\n" ":" | sed "s/::/:/g" )
+                fi
+            else
+		echo "alignment was done inhouse. no need to resort"
+		echo "We need to wait until the alignment jobs enter the queue"
+
+		while [ ! -s $output_logs/ALN_NCSA_jobids ]
+		do
+		    `sleep 60s`
+		done
+                ##the aligned bam files may not be ready; just pass the dirname
+                listfiles=$outputdir/align
+		JOBSncsa=$( cat $output_logs/ALN_NCSA_jobids | sed "s/\.[a-z]*//g" | tr "\n" ":" | sed "s/::/:/g" )
+            fi
+        fi
+
+        ## preprocessing is done. Now we can realign and recalibrate bam files
+        echo "preprocessing of bam files is done. ready to realign"
+
+        # grab job ids for align, merge and jobs
+        alignids=$( cat $output_logs/ALIGNEDpbs | sed "s/\.[a-z]*//" | tr "\n" " " )
+        mergeids=$( cat $output_logs/MERGEDpbs | sed "s/\.[a-z]*//" | tr "\n" " " )
+        sortedmayoids=$( cat $output_logs/REALSORTEDMAYOpbs | sed "s/\.[a-z]*//" | tr "\n" " " )
+        revbamids=$( cat $output_logs/REVERTINPUTBAMpbs | sed "s/\.[a-z]*//" | tr "\n" " " )
+        extraids=$( cat $output_logs/EXTRACTREADSpbs | sed "s/\.[a-z]*//" | tr "\n" " " )
+
+	qsub3=$realignlogdir/qsub.realign_new
 	echo "#PBS -V" > $qsub3
 	echo "#PBS -A $pbsprj" >> $qsub3
 	echo "#PBS -N real_recal" >> $qsub3
         echo "#PBS -l epilogue=$epilogue" >> $qsub3
 	echo "#PBS -l walltime=$pbscpu" >> $qsub3
 	echo "#PBS -l nodes=1:ppn=16" >> $qsub3
-	echo "#PBS -o $realignlogdir/log.recalibration.ou" >> $qsub3
-	echo "#PBS -e $realignlogdir/log.recalibration.in" >> $qsub3
+	echo "#PBS -o $realignlogdir/log.realign_new.ou" >> $qsub3
+	echo "#PBS -e $realignlogdir/log.realign_new.in" >> $qsub3
 	echo "#PBS -q $pbsqueue" >> $qsub3
 	echo "#PBS -m ae" >> $qsub3
 	echo "#PBS -M $email" >> $qsub3
-        if [ $resortflag == "YES" ]
+        if [ `expr length ${JOBSmayo}` -gt 0 ]
         then
             echo "#PBS -W depend=afterok:$JOBSmayo" >> $qsub3
         else
             echo "#PBS -W depend=afterok:$JOBSncsa" >> $qsub3
         fi
-        echo "$scriptdir/realign_extra.sh $realigndir $realignlogdir $outputdir/align $runfile $realrecalflag $realignlogdir/log.recalibration.in $realignlogdir/log.recalibration.ou $email $realignlogdir/qsub.recalibration" >> $qsub3
+        echo "$scriptdir/realign_new.sh $realigndir $realignlogdir $listfiles $runfile $realrecalflag $realignlogdir/log.realign_new.in $realignlogdir/log.realign_new.ou $email $realignlogdir/qsub.realign_new" >> $qsub3
 	`chmod a+r $qsub3`               
-        `qsub $qsub3 >> $output_logs/RECALLpbs`
+        realrecaljob=`qsub $qsub3` 
+        `qhold -h u $realrecaljob`
+        echo $realrecaljob >> $output_logs/RECALLpbs
 
+        `qrls -h u $alignids`
+        `qrls -h u $mergeids`
+        `qrls -h u $sortedmayoids`
+        `qrls -h u $extraids`
+        `qrls -h u $revbamids`
+        `qrls -h u $realrecaljob`
 
 	#`sleep 5s`
         echo "done realig/recalibrating  all bam files."

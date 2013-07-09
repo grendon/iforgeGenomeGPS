@@ -137,13 +137,13 @@ else
 	   echo "snvcaller is GATK"
            if [[ $allsites == "YES" && $type == "exome" ]]
            then
-               pedfile=variant.$chr.raw.all.pbt.vcf
-	       outfile=variant.$chr.raw.all.vcf
+               pedfile=$infile.$chr.raw.all.pbt.vcf
+	       outfile=$infile.$chr.raw.all.vcf
 	       umode="EMIT_ALL_SITES"
 	       utype="BOTH"
            else
-               pedfile=variant.$chr.raw.pbt.vcf
-	       outfile=variant.$chr.raw.vcf
+               pedfile=$infile.$chr.raw.pbt.vcf
+	       outfile=$infile.$chr.raw.vcf
 	       umode="EMIT_VARIANTS_ONLY"
 	       utype="BOTH"
            fi
@@ -152,17 +152,17 @@ else
 	   echo "snvcaller is SNVMIX"
            if [ $allsites == "YES" -a $type == "exome" ]
            then
-	       snvfile=variant.$chr.raw.snv.all.vcf
-	       outfile=variant.$chr.raw.indel.all.vcf
-	       combfile=variant.$chr.raw.multi.vcf
+	       snvfile=$infile.$chr.raw.snv.all.vcf
+	       outfile=$infile.$chr.raw.indel.all.vcf
+	       combfile=$infile.$chr.raw.multi.vcf
 	       combparms="-V $outputdir/$snvfile -V $outputdir/$outfile"
 	       umode="EMIT_ALL_SITES"
 	       utype="INDEL"
                smode="all"
            else
-	       snvfile=variant.$chr.raw.snv.vcf
-	       outfile=variant.$chr.raw.indel.vcf
-	       combfile=variant.$chr.raw.multi.vcf
+	       snvfile=$infile.$chr.raw.snv.vcf
+	       outfile=$infile.$chr.raw.indel.vcf
+	       combfile=$infile.$chr.raw.multi.vcf
 	       combparms="$-V outputdir/$snvfile -V $outputdir/$outfile"
 	       umode="EMIT_VARIANTS_ONLY"
 	       utype="INDEL"
@@ -171,9 +171,9 @@ else
        elif [ $snvcaller == "BEAUTY_EXOME" ]
        then
 	   echo "snvcaller is BEAUTY_EXOME"
-	   snvfile=variant.$chr.raw.snvmix.vcf
-	   outfile=variant.$chr.raw.gatk.vcf
-	   combfile=variant.$chr.raw.multi.vcf
+	   snvfile=$infile.$chr.raw.snvmix.vcf
+	   outfile=$infile.$chr.raw.gatk.vcf
+	   combfile=$infile.$chr.raw.multi.vcf
 	   combparms="-V:GATK $outputdir/$outfile -V:SNVMix $outputdir/$snvfile -priority GATK,SNVMix" 
 	   umode="EMIT_VARIANTS_ONLY"
 	   utype="BOTH"
@@ -233,7 +233,7 @@ else
         then
 	    echo "calculating variants by snvmix and then merging results"
             pilefile=$outfile.pileup
-            tmpfile=variant.$chr.tmp.snv
+            tmpfile=$infile.$chr.tmp.snv
             $samdir/samtools mpileup -f $refdir/$ref $inputdir/$infile > $pilefile 
 	    if [ ! -s $pilefile ]
             then

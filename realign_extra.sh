@@ -32,7 +32,7 @@ else
 
         pbsprj=$( cat $runfile | grep -w PBSPROJECTID | cut -d '=' -f2 )
         type=$( cat $runfile | grep -w TYPE | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
-        analysis=$( cat $runfile | grep -w ANALYSIS | cut -d '=' -f2 )
+        analysis=$( cat $runfile | grep -w ANALYSIS | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
         outputrootdir=$( cat $runfile | grep -w OUTPUTDIR | cut -d '=' -f2 )
         scriptdir=$( cat $runfile | grep -w SCRIPTDIR | cut -d '=' -f2 )
         refdir=$( cat $runfile | grep -w REFGENOMEDIR | cut -d '=' -f2 )
@@ -138,33 +138,43 @@ else
 	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
-        if [ ! -d $aligndir ]
+
+
+        # get aligned bam files when alignment is done inhouse
+        if [ $analysis == "REALIGN" -o $analysis == "REALIGNMENT" ]
         then
-	    MSG="$realigndir realign directory not found"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-	    exit 1;
-        fi
+            echo "inhouse alignment. gathering aligned bam files"
+            cd $outputrootdir
+            allfiles=`find ./align -name "*.wdups.sorted.bam"`
+	    if [ `expr length ${allfiles}` -lt 1 ]
+	    then
+		MSG="No bam file(s) found to perform realign-recalibrate at $outputrootdir/align"
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit 1;
+	    fi
+            listfiles=""
+	    sep=" "
+            for file in $allfiles
+            do
+		newname=$( echo $file | sed "s/.\/align\///" )
+		newname=$outputrootdir/align/$newname
+		listfiles=$newname${sep}${listfiles}
+            done
+	else
+            if [ $analysis == "REALIGN_ONLY" -o $analysis == "REALIGNONLY" ]
+            then
+		echo "3rd param, aligndir,  has the list of aligned bam files"
+		listfiles=$( echo $aligndir | tr ":" " " )
+            else
+		MSG="Invalid value for analysis=$analysis"
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit 1;
+            fi
+	fi
 
         outputdir=$realigndir
         vardir=$outputrootdir/variant
         varlogdir=$outputrootdir/logs/variant
-        cd $outputrootdir
-        allfiles=`find ./align -name "*.wdups.sorted.bam"`
-	if [ `expr length ${allfiles}` -lt 1 ]
-	then
-	    MSG="No bam file(s) found to perform realign-recalibrate"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-	    exit 1;
-	fi
-        listfiles=""
-        for file in $allfiles
-        do
-           newname=$( echo $file | sed "s/.\/align\///" )
-           newname=$aligndir/$newname
-           sep=" "
-           listfiles=$newname${sep}${listfiles}
-        done
-       
 
         if [ ! -d $outputdir ]
         then
@@ -262,11 +272,14 @@ else
 	    done
 	done
 
+        igv_files=""
+        sep=":"
 	for chr in $indices
         do
 	    inx=$( echo $chr | sed 's/chr//' | sed 's/X/25/' | sed 's/Y/26/' | sed 's/M/27/' )
             sortid=$( cat $outputrootdir/logs/REALSORTED_$chr | sed "s/\.[a-z]*//g" | tr "\n" ":" )
             outputfile=$chr.realrecal.output.bam
+            igv_files=${igv_files}":INPUT=${outputfile}"
 	    echo "realign-recalibrate for interval:$chr..."
 	    qsub2=$realignlogdir/qsub.realrecal.$chr
 	    echo "#PBS -V" > $qsub2
@@ -284,6 +297,8 @@ else
 	    echo "$scriptdir/realrecalold.sh $outputfile $chr ${chrinfiles[$inx]} ${chrinputfiles[$inx]} ${region[$inx]} $realparms $recalparms $runfile $flag $realignlogdir/log.realrecal.$chr.in $realignlogdir/log.realrecal.$chr.ou $email $realignlogdir/qsub.realrecal.$chr" >> $qsub2
 	    `chmod a+r $qsub2`
 	    recaljobid=`qsub $qsub2`
+            # new line to avoid hiccup
+            `qhold -h u $recaljobid`
 	    echo $recaljobid >> $outputrootdir/logs/REALRECALpbs
 
 
@@ -314,14 +329,18 @@ else
      done
 
      # new line to avoid hiccups
-     heldjobs=$( cat $outputrootdir/logs/REALSORTEDpbs | sed "s/\.[a-z]*//g" | tr "\n" " " )
-     `qrls -h u $heldjobs`
+     #heldjobs_realsorted=$( cat $outputrootdir/logs/REALSORTEDpbs | sed "s/\.[a-z]*//g" | tr "\n" " " )
+     #`qrls -h u $heldjobs_realsorted`
 
-     `chmod -R 770 $realigndir/`
-     `chmod -R 770 $vardir/`
+     # new line to avoid hiccups
+     #heldjobs_realrecal=$( cat $outputrootdir/logs/REALRECALpbs | sed "s/\.[a-z]*//g" | tr "\n" " " )
+     #`qrls -h u $heldjobs_realrecal`
+
+     #`chmod -R 770 $realigndir/`
+     #`chmod -R 770 $vardir/`
      
      
-     echo "wrap up and produce summary table"
+     echo "clean up and produce summary table"
      if [ $skipvcall == "NO" ]
      then
 	 listjobids=$( cat $outputrootdir/logs/VCALLGATKpbs | sed "s/\.[a-z]*//g" | tr "\n" ":" )
@@ -329,19 +348,73 @@ else
 	 listjobids=$( cat $outputrootdir/logs/REALRECALpbs | sed "s/\.[a-z]*//g" | tr "\n" ":" )
      fi
      lastjobid=""
-     qsub4=$outputrootdir/logs/qsub.summary.allok
+
+     qsub5=$outputrootdir/logs/qsub.igvbam
+     echo "#PBS -V" > $qsub5
+     echo "#PBS -A $pbsprj" >> $qsub5
+     echo "#PBS -N igvbam" >> $qsub5
+     echo "#PBS -l epilogue=$epilogue" >> $qsub5
+     echo "#PBS -l walltime=$pbscpu" >> $qsub5
+     echo "#PBS -l nodes=1:ppn=16" >> $qsub5
+     echo "#PBS -o $outputrootdir/logs/log.igvbam.ou" >> $qsub5
+     echo "#PBS -e $outputrootdir/logs/log.igvbam.in" >> $qsub5
+     echo "#PBS -q $pbsqueue" >> $qsub5
+     echo "#PBS -m ae" >> $qsub5
+     echo "#PBS -M $email" >> $qsub5
+     echo "#PBS -W depend=afterok:$listjobids" >> $qsub5
+     echo "$scriptdir/igvbam.sh $outputrootdir/realign $igv_files $runfile $outputrootdir/logs/log.igvbam.in $outputroot/logs/log.igvbam.ou $email $outputrootdir/logs/qsub.igvbam"  >> $qsub5
+     `chmod a+r $qsub5`
+     igvjobid=`qsub $qsub5`
+     echo $igvjobid >> $outputrootdir/logs/IGVBAMpbs
+
+
+
+     # new line to avoid hiccups
+     heldjobs_realsorted=$( cat $outputrootdir/logs/REALSORTEDpbs | sed "s/\.[a-z]*//g" | tr "\n" " " )
+     `qrls -h u $heldjobs_realsorted`
+
+     # new line to avoid hiccups
+     heldjobs_realrecal=$( cat $outputrootdir/logs/REALRECALpbs | sed "s/\.[a-z]*//g" | tr "\n" " " )
+     `qrls -h u $heldjobs_realrecal`
+
+     `chmod -R 770 $realigndir/`
+     `chmod -R 770 $vardir/`
+
+
+
+
+
+     qsub6=$outputrootdir/logs/qsub.cleanup.realn
+     echo "#PBS -V" > $qsub6
+     echo "#PBS -A $pbsprj" >> $qsub6
+     echo "#PBS -N cleanup_realn" >> $qsub6
+     echo "#PBS -l epilogue=$epilogue" >> $qsub6
+     echo "#PBS -l walltime=$pbscpu" >> $qsub6
+     echo "#PBS -l nodes=1:ppn=1" >> $qsub6
+     echo "#PBS -o $outputrootdir/logs/log.cleanup.realn.ou" >> $qsub6
+     echo "#PBS -e $outputrootdir/logs/log.cleanup.realn.in" >> $qsub6
+     echo "#PBS -q $pbsqueue" >> $qsub6
+     echo "#PBS -m ae" >> $qsub6
+     echo "#PBS -M $email" >> $qsub6
+     echo "#PBS -W depend=afterok:$igvjobid" >> $qsub6
+     echo "$scriptdir/cleanup.sh $outputrootdir $analysis $outputrootdir/logs/log.cleanup.realn.in $outputrootdir/logs/log.cleanup.realn.ou $email $outputrootdir/logs/qsub.cleanup.realn"  >> $qsub6
+     `chmod a+r $qsub6`
+     cleanjobid=`qsub $qsub6`
+     echo $cleanjobid >> $outputrootdir/logs/CLEANUPpbs
+
+     qsub4=$outputrootdir/logs/qsub.summary.realn.allok
      echo "#PBS -V" > $qsub4
      echo "#PBS -A $pbsprj" >> $qsub4
      echo "#PBS -N summaryok" >> $qsub4
      echo "#PBS -l epilogue=$epilogue" >> $qsub4
      echo "#PBS -l walltime=$pbscpu" >> $qsub4
      echo "#PBS -l nodes=1:ppn=1" >> $qsub4
-     echo "#PBS -o $outputrootdir/logs/log.summary.ou" >> $qsub4
-     echo "#PBS -e $outputrootdir/logs/log.summary.in" >> $qsub4
+     echo "#PBS -o $outputrootdir/logs/log.summary.realn.ou" >> $qsub4
+     echo "#PBS -e $outputrootdir/logs/log.summary.realn.in" >> $qsub4
      echo "#PBS -q $pbsqueue" >> $qsub4
      echo "#PBS -m ae" >> $qsub4
      echo "#PBS -M $email" >> $qsub4
-     echo "#PBS -W depend=afterok:$listjobids" >> $qsub4
+     echo "#PBS -W depend=afterok:$cleanjobid" >> $qsub4
      echo "$scriptdir/summary.sh $outputrootdir $email exitok"  >> $qsub4
      `chmod a+r $qsub4`
      lastjobid=`qsub $qsub4`
@@ -350,15 +423,15 @@ else
      if [ `expr length ${lastjobid}` -lt 1 ]
      then
          echo "at least one job aborted"
-	 qsub5=$outputrootdir/logs/qsub.summary.afterany
+	 qsub5=$outputrootdir/logs/qsub.summary.realn.afterany
 	 echo "#PBS -V" > $qsub5
 	 echo "#PBS -A $pbsprj" >> $qsub5
 	 echo "#PBS -N summary_afterany" >> $qsub5
 	 echo "#PBS -l epilogue=$epilogue" >> $qsub5
 	 echo "#PBS -l walltime=$pbscpu" >> $qsub5
 	 echo "#PBS -l nodes=1:ppn=1" >> $qsub5
-	 echo "#PBS -o $outputrootdir/logs/log.summary.afterany.ou" >> $qsub5
-	 echo "#PBS -e $outputrootdir/logs/log.summary.afterany.in" >> $qsub5
+	 echo "#PBS -o $outputrootdir/logs/log.summary.realn.afterany.ou" >> $qsub5
+	 echo "#PBS -e $outputrootdir/logs/log.summary.realn.afterany.in" >> $qsub5
 	 echo "#PBS -q $pbsqueue" >> $qsub5
 	 echo "#PBS -m ae" >> $qsub5
 	 echo "#PBS -M $email" >> $qsub5

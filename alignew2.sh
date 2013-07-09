@@ -50,13 +50,15 @@ else
         epilogue=$( cat $runfile | grep -w EPILOGUE  | cut -d '=' -f2 )
 	dupparms=$( echo "dup=${dup}_flag=${dupflag}")
         type=$( cat $runfile | grep -w TYPE | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
-        inputdir=$( cat $runfile | grep -w SAMPLEDIR | cut -d '=' -f2 )
         paired=$( cat $runfile | grep -w PAIRED | cut -d '=' -f2 )
-        samplefileinfo=$( cat $runfile | grep -w SAMPLEFILENAMES | cut -d '=' -f2 )
         rlen=$( cat $runfile | grep -w READLENGTH | cut -d '=' -f2 )
+        inputdir=$( cat $runfile | grep -w SAMPLEDIR | cut -d '=' -f2 )
+
+        samplefileinfo=$( cat $runfile | grep -w SAMPLEFILENAMES | cut -d '=' -f2 )
         multisample=$( cat $runfile | grep -w MULTISAMPLE | cut -d '=' -f2 )
         samples=$( cat $runfile | grep -w SAMPLENAMES | cut -d '=' -f2 | tr ":" "\n")
         sortool=$( cat $runfile | grep -w SORTMERGETOOL | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
+        analysis=$( cat $runfile | grep -w ANALYSIS | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
 
         if [ $type == "GENOME" -o $type == "WHOLE_GENOME" -o $type == "WHOLEGENOME" -o $type == "WGS" ]
         then
@@ -207,34 +209,6 @@ else
            mkdir -p $output_logs
         fi
 
-        # step 1:  conversion of input files from bam to fastq
-        # note: a new sampleinfo file will be generated to make things easier
-        # down the road with alignment and realignment
-
-        if [ $bamtofastqflag == "YES"  ]
-        then
-            echo "bam to fastq conversion is needed before aligning"
-            qsub=$output_logs/qsub.convert.bam.fastq
-            echo "#PBS -V" > $qsub
-            echo "#PBS -A $pbsprj" >> $qsub
-            echo "#PBS -N bam2fastq" >> $qsub
-            echo "#PBS -l epilogue=$epilogue" >> $qsub
-	    echo "#PBS -l walltime=$pbscpu" >> $qsub
-	    echo "#PBS -l nodes=1:ppn=16" >> $qsub
-	    echo "#PBS -o $output_logs/log.bam2fastq.ou" >> $qsub
-	    echo "#PBS -e $output_logs/log.bam2fastq.in" >> $qsub
-            echo "#PBS -q $pbsqueue" >> $qsub
-            echo "#PBS -m ae" >> $qsub
-            echo "#PBS -M $email" >> $qsub
-	    echo "$scriptdir/bam2fastq.sh $inputdir $samplefileinfo $runfile $output_logs/log.bam2fastq.in $output_logs/log.bam2fastq.ou $email $output_logs/qsub.convert.bam.fastq" >> $qsub
-            `chmod a+r $qsub`
-            `qsub $qsub >> $output_logs/CONVERTpbs`
-        else
-	    echo "no need to convert input file from bam to fastq"
-        fi
-
-        #
-        # Step 2: checking sample names and sample input file details
         if [ ! -s $samplefileinfo ]
         then
            MSG="SAMPLEFILENAMES=$samplefileinfo file not found"
@@ -268,14 +242,12 @@ else
 	   fi
         fi
 
-        CONVERT=$( cat $output_logs/CONVERTpbs | sed "s/\.[a-z]*//" | tr "\n" ":" )
-
         prevname=""
         counter=0
 
         #
         # Step 3: alignment loop starts here
-        # 
+        # need to rewrite this module to undo dependence on dirname
         
         while read sampledetail
         do
@@ -322,6 +294,7 @@ else
 		echo "$scriptdir/mergenovo.sh $outputalign $listfiles $outsortwdup $outsortnodup $sortedplain $dupparms $RGparms $runfile $outputlogs/log.novosort.$prevname.in $outputlogs/log.novosort.$prevname.ou $email $outputlogs/qsub.merge.novosort.$prevname" >> $qsub1
 		`chmod a+r $qsub1`
 		mergejob=`qsub $qsub1`
+                `qhold -h u $mergejob`
 		echo $mergejob  >> $outputlogs/MERGED_$prevname
 
 		echo `date`
@@ -341,7 +314,8 @@ else
 		echo "#PBS -W depend=afterok:$mergejob" >> $qsub5
 		echo "$scriptdir/extract_reads_bam.sh $outputalign $outsortwdup $runfile $outputlogs/log.extractreadsbam.$prevname.in $outputlogs/log.extractreadsbam.$prevname.ou $email $outputlogs/qsub.extractreadsbam.$prevname $igv $extradir " >> $qsub5
 		`chmod a+r $qsub5`
-		extrajob=`qsub $qsub5` 
+		extrajob=`qsub $qsub5`
+                `qhold -h u $extrajob` 
                 echo $extrajob >> $output_logs/EXTRACTREADSpbs
 
                 # resetting some variables
@@ -369,16 +343,16 @@ else
                 echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
                 exit 1;
             else
-		if [ ! -s $inputdir/$R1 ]
+		if [ ! -s $R1 ]
 		then
-		    MSG="$inputdir/$R1 reads file1 not found"
+		    MSG="$R1 reads file1 not found"
                     echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		    exit 1;
 		fi
 		totlines=`wc -l $R1 | cut -d ' ' -f 1`
 		if [ $totlines -lt 1 ]
 		then
-		    MSG="$inputdir/$R1 reads file is empty"
+		    MSG="$R1 reads file is empty"
                     echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		    exit 1;
                 fi
@@ -399,17 +373,17 @@ else
                     echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
                     exit 1;
 		else
-		    if [ ! -s $inputdir/$R2 ]
+		    if [ ! -s $R2 ]
 		    then
-			MSG="$inputdir/$R2 reads file2 not found"
+			MSG="$R2 reads file2 not found"
                         echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 			exit 1;
                     
                     fi
-		    totlinesr2=`wc -l $R1 | cut -d ' ' -f 1`
+		    totlinesr2=`wc -l $R2 | cut -d ' ' -f 1`
 		    if [ $totlinesr2 -lt 1 ]
 		    then
-			MSG="$inputdir/$R2 reads file2 is empty"
+			MSG="$R2 reads file2 is empty"
 			echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 			exit 1;
 		    fi
@@ -441,7 +415,7 @@ else
 		echo "#PBS -q $pbsqueue" >> $qsub
 		echo "#PBS -m ae" >> $qsub
 		echo "#PBS -M $email" >> $qsub
-		echo "$scriptdir/fastq.sh $fastqcdir $outputdir/fastqc $fastqcparms $inputdir/$R1 $output_logs/log.fastqc1.$prevname.R1.in $output_logs/log.fastqc1.$prevname.R1.ou $email $output_logs/qsub.cal.fastqcr1.$prevname.R1" >> $qsub
+		echo "$scriptdir/fastq.sh $fastqcdir $outputdir/fastqc $fastqcparms $R1 $output_logs/log.fastqc1.$prevname.R1.in $output_logs/log.fastqc1.$prevname.R1.ou $email $output_logs/qsub.cal.fastqcr1.$prevname.R1" >> $qsub
 		`chmod a+r $qsub`
                 `qsub $qsub >> $output_logs/FASTQCpbs`
 
@@ -459,7 +433,7 @@ else
 		    echo "#PBS -q $pbsqueue" >> $qsub
 		    echo "#PBS -m ae" >> $qsub
 		    echo "#PBS -M $email" >> $qsub
-		    echo "$scriptdir/fastq.sh $fastqcdir $outputdir/fastqc $fastqcparms $inputdir/$R2 $output_logs/log.fastqc2.$prevname.R2.in $output_logs/log.fastqc2.$prevname.R2.ou $email $output_logs/qsub.cal.fastqcr2.$prevname.R2" >> $qsub
+		    echo "$scriptdir/fastq.sh $fastqcdir $outputdir/fastqc $fastqcparms $R2 $output_logs/log.fastqc2.$prevname.R2.in $output_logs/log.fastqc2.$prevname.R2.ou $email $output_logs/qsub.cal.fastqcr2.$prevname.R2" >> $qsub
 		    `chmod a+r $qsub`
                     `qsub $qsub >> $output_logs/FASTQCpbs`
 		fi
@@ -515,12 +489,12 @@ else
             fi
 
             echo "splitting read file 1=$R1"
-            `split -l $numlines -a 1 -d $inputdir/$R1 $newname1`
+            `split -l $numlines -a 1 -d $R1 $newname1`
 
             if [ $paired -eq 1 ]
             then
                 echo "splitting read file 2=$R2"
-		`split -l $numlines -a 1 -d $inputdir/$R2 $newname2`
+		`split -l $numlines -a 1 -d $R2 $newname2`
             fi
 
             ## now we are ready to distribute and align each chunk
@@ -561,7 +535,7 @@ else
                     echo "#PBS -q $pbsqueue" >> $qsub
                     echo "#PBS -m ae" >> $qsub
                     echo "#PBS -M $email" >> $qsub
-		    echo "#PBS -W depend=afterok:$CONVERT" >> $qsub
+		    #echo "#PBS -W depend=afterok:$CONVERT" >> $qsub
                     if [ $paired -eq 1 ]
                     then
 			echo "$scriptdir/novosplit.sh $alignerdir $alignparms $refdir/$refindexed $outputalign $outputsam.node$i.sam $outputsam.node$i.bam $scriptdir $samdir $paired $outputalign/$Rone $outputalign/$Rtwo $outputlogs/log.novo.$prevname.node$i.in $outputlogs/log.novo.$prevname.node$i.ou $email $outputlogs/qsub.novoaln.$prevname.node$i" >> $qsub
@@ -570,6 +544,7 @@ else
                     fi
                     `chmod a+r $qsub`
                     jobnovo=`qsub $qsub`
+                    `qhold -h u $jobnovo`
 		    echo $jobnovo >> $outputlogs/ALIGNED_$dirname
 		else
                     echo "bwa is used as aligner. input file format is in fastq"
@@ -585,11 +560,12 @@ else
                     echo "#PBS -q $pbsqueue" >> $qsub1
                     echo "#PBS -m ae" >> $qsub1
                     echo "#PBS -M $email" >> $qsub1
-		    echo "#PBS -W depend=afterok:$CONVERT" >> $qsub1
+		    #echo "#PBS -W depend=afterok:$CONVERT" >> $qsub1
 		    echo "$scriptdir/bwaS1.sh $alignerdir $alignparms $refdir/$refindexed $outputalign $outputsam.node$i.R1.sai $outputalign/$Rone $scriptdir $outputlogs/log.bwar1.$prevname.node$i.in $outputlogs/log.bwar1.$prevname.node$i.ou $email $outputlogs/qsub.bwar1.$prevname.node$i" >> $qsub1
 
                     `chmod a+r $qsub1`
                     jobr1=`qsub $qsub1`
+                    `qhold -h u $jobr1`
                     echo $jobr1 >> $outputlogs/ALIGNED_$dirname
                     if [ $paired -eq 1 ]
                     then
@@ -606,10 +582,11 @@ else
 			echo "#PBS -q $pbsqueue" >> $qsub2
 			echo "#PBS -m ae" >> $qsub2
 			echo "#PBS -M $email" >> $qsub2
-			echo "#PBS -W depend=afterok:$CONVERT" >> $qsub2
+			#echo "#PBS -W depend=afterok:$CONVERT" >> $qsub2
 			echo "$scriptdir/bwaS1.sh $alignerdir $alignparms $refdir/$refindexed $outputalign $outputsam.node$i.R2.sai $outputalign/$Rtwo $scriptdir $outputlogs/log.bwar2.$prevname.node$i.in $outputlogs/log.bwar2.$prevname.node$i.ou $email $outputlogs/qsub.bwar2.$prevname.node$i" >> $qsub2
 			`chmod a+r $qsub2`
                         jobr2=`qsub $qsub2`
+			`qhold -h u $jobr2`
 			echo $jobr2 >> $outputlogs/ALIGNED_$dirname
 
 			qsub3=$outputlogs/qsub.bwar3.$prevname.node$i
@@ -628,6 +605,7 @@ else
 			echo "$scriptdir/bwaS2.sh $alignerdir $refdir/$refindexed $outputalign $outputsam.node$i.R1.sai $outputsam.node$i.R2.sai $outputalign/$Rone $outputalign/$Rtwo $outputsam.node$i.sam $outputsam.node$i.bam $samdir $outputlogs/log.bwar3.$prevname.node$i.in $outputlogs/log.bwar3.$prevname.node$i.ou $email $outputlogs/qsub.bwar3.$prevname.node$i" >> $qsub3
 			`chmod a+r $qsub3`
                         jobwa=`qsub $qsub3`
+			`qhold -h u $jobwa`
 			echo $jobwa >> $outputlogs/ALIGNED_$dirname
                     else
                         echo "bwa aligner. single read"
@@ -647,6 +625,7 @@ else
 			echo "$scriptdir/bwaS3.sh $alignerdir $refdir/$refindexed $outputalign $outputsam.node$i.R1.sai $outputalign/$Rone $outputsam.node$i.sam $outputsam.node$i.bam $samdir $outputlogs/log.bwar3.$prevname.node$i.in $outputlogs/log.bwar3.$prevname.node$i.ou $email $outputlogs/qsub.bwar3.$prevname.node$i" >> $qsub3
 			`chmod a+r $qsub3`
                         jobwa=`qsub $qsub3`
+			`qhold -h u $jobwa`
                         echo $qsub3 >> $outputlogs/ALIGNED_$dirname
                     fi
                 fi
@@ -663,10 +642,9 @@ else
 	echo `date`
 	echo "step 3: sort-merging chunks for sample $prevname"
 
-	ALIGNED=$( cat $outputlogs/ALIGNED_$prevname | sed "s/\.[a-z]*//" | tr "\n" ":" )
+	ALIGNED=$( cat $outputlogs/ALIGNED_* | sed "s/\.[a-z]*//" | tr "\n" ":" )
 
 	listfiles=$( echo $allfiles  | tr " " ":" | sed "s/::/:/g" )
-
         if [ $sortool == "NOVOSORT" ]
         then
 	    qsub1=$outputlogs/qsub.merge.novosort.$prevname
@@ -685,6 +663,7 @@ else
 	    echo "$scriptdir/mergenovo.sh $outputalign $listfiles $outsortwdup $outsortnodup $sortedplain $dupparms $RGparms $runfile $outputlogs/log.novosort.$prevname.in $outputlogs/log.novosort.$prevname.ou $email $outputlogs/qsub.merge.novosort.$prevname" >> $qsub1
 	    `chmod a+r $qsub1`
 	    mergejob=`qsub $qsub1`
+            `qhold -h u $mergejob`
 	    echo $mergejob  >> $outputlogs/MERGED_$prevname
         else
 	    qsub1=$outputlogs/qsub.sortmerge.picard.$prevname
@@ -703,6 +682,7 @@ else
 	    echo "$scriptdir/mergepicard.sh $outputalign $listfiles $outsortwdup $outsortnodup $sortedplain $dupparms $RGparms $runfile $outputlogs/log.sortmerge.$prevname.in $outputlogs/log.sortmerge.$prevname.ou $email $outputlogs/qsub.sortmerge.picard.$prevname" >> $qsub1
 	    `chmod a+r $qsub1`
 	    mergejob=`qsub $qsub1`
+            `qhold -h u $mergejob`
 	    echo $mergejob  >> $outputlogs/MERGED_$prevname
         fi
 
@@ -723,17 +703,117 @@ else
 	echo "#PBS -W depend=afterok:$mergejob" >> $qsub5
 	echo "$scriptdir/extract_reads_bam.sh $outputalign $outsortwdup $runfile $outputlogs/log.extractreadsbam.$prevname.in $outputlogs/log.extractreadsbam.$prevname.ou $email  $outputlogs/qsub.extractreadsbam.$prevname $igv $extradir" >> $qsub5
 	`chmod a+r $qsub5`
-	`qsub $qsub5 >> $output_logs/EXTRACTREADSpbs`
+	extrajob=`qsub $qsub5`
+        `qhold -h u $extrajob`
+        echo $extrajob >> $output_logs/EXTRACTREADSpbs
 
-        # resetting some variables
+     ## wrapup
 	cat $outputlogs/ALIGNED_$prevname >> $output_logs/ALIGNEDpbs
 	cat $outputlogs/MERGED_$prevname >> $output_logs/MERGEDpbs
-	chunks=`expr $nodes "-" 1`
         
 	pbsids=$( cat $output_logs/MERGEDpbs | sed "s/\.[a-z]*//" | tr "\n" ":" )
+	extraids=$( cat $output_logs/EXTRACTREADSpbs | sed "s/\.[a-z]*//" | tr "\n" " " )
+        mergeids=$( echo $pbsids | tr ":" " " )
+        alignids=$( echo $ALIGNED | tr ":" " " )
 	echo $pbsids >> $output_logs/ALN_NCSA_jobids
-        echo "done aligning all files specified in the sample_info file."
-        echo `date`
-	`chmod -R 770 $oualigndir`
-	`chmod -R 770 $output_logs`
+
+     ## generating summary redmine email if analysis ends here
+     echo "wrap up and produce summary table if analysis ends here or call realign if analysis continues"
+     if [ $analysis == "ALIGNMENT" -o $analysis == "ALIGN" -o $analysis == "ALIGN_ONLY" ]
+     then
+        # release all held jobs
+        `qrls -h u $alignids`
+        `qrls -h u $mergeids`
+        `qrls -h u $extraids`
+     
+	 lastjobid=""
+	 qsub6=$output_logs/qsub.cleanup.align
+	 echo "#PBS -V" > $qsub6
+	 echo "#PBS -A $pbsprj" >> $qsub6
+	 echo "#PBS -N cleanup_aln" >> $qsub6
+	 echo "#PBS -l epilogue=$epilogue" >> $qsub6
+	 echo "#PBS -l walltime=$pbscpu" >> $qsub6
+	 echo "#PBS -l nodes=1:ppn=1" >> $qsub6
+	 echo "#PBS -o $output_logs/log.cleanup.align.ou" >> $qsub6
+	 echo "#PBS -e $output_logs/log.cleanup.align.in" >> $qsub6
+	 echo "#PBS -q $pbsqueue" >> $qsub6
+	 echo "#PBS -m ae" >> $qsub6
+	 echo "#PBS -M $email" >> $qsub6
+	 echo "#PBS -W depend=afterok:$pbsids" >> $qsub6
+	 echo "$scriptdir/cleanup.sh $outputdir $analysis $output_logs/log.cleanup.align.in $output_logs/log.cleanup.align.ou $email $output_logs/qsub.cleanup.align"  >> $qsub6
+	 `chmod a+r $qsub6`
+	 cleanjobid=`qsub $qsub6`
+	 echo $cleanjobid >> $outputdir/logs/CLEANUPpbs
+
+	 qsub4=$output_logs/qsub.summary.aln.allok
+	 echo "#PBS -V" > $qsub4
+	 echo "#PBS -A $pbsprj" >> $qsub4
+	 echo "#PBS -N summaryok" >> $qsub4
+	 echo "#PBS -l epilogue=$epilogue" >> $qsub4
+	 echo "#PBS -l walltime=$pbscpu" >> $qsub4
+	 echo "#PBS -l nodes=1:ppn=1" >> $qsub4
+	 echo "#PBS -o $output_logs/log.summary.aln.ou" >> $qsub4
+	 echo "#PBS -e $output_logs/log.summary.aln.in" >> $qsub4
+	 echo "#PBS -q $pbsqueue" >> $qsub4
+	 echo "#PBS -m ae" >> $qsub4
+	 echo "#PBS -M $email" >> $qsub4
+	 echo "#PBS -W depend=afterok:$cleanjobid" >> $qsub4
+	 echo "$scriptdir/summary.sh $outputdir $email exitok"  >> $qsub4
+	 `chmod a+r $qsub4`
+	 lastjobid=`qsub $qsub4`
+	 echo $lastjobid >> $output_logs/SUMMARYpbs
+
+	 if [ `expr length ${lastjobid}` -lt 1 ]
+	 then
+             echo "at least one job aborted"
+	     qsub5=$output_logs/qsub.summary.aln.afterany
+	     echo "#PBS -V" > $qsub5
+	     echo "#PBS -A $pbsprj" >> $qsub5
+	     echo "#PBS -N summary_afterany" >> $qsub5
+	     echo "#PBS -l epilogue=$epilogue" >> $qsub5
+	     echo "#PBS -l walltime=$pbscpu" >> $qsub5
+	     echo "#PBS -l nodes=1:ppn=1" >> $qsub5
+	     echo "#PBS -o $output_logs/log.summary.aln.afterany.ou" >> $qsub5
+	     echo "#PBS -e $output_logs/log.summary.aln.afterany.in" >> $qsub5
+	     echo "#PBS -q $pbsqueue" >> $qsub5
+	     echo "#PBS -m ae" >> $qsub5
+	     echo "#PBS -M $email" >> $qsub5
+	     echo "#PBS -W depend=afterany:$pbsids" >> $qsub5
+	     echo "$scriptdir/summary.sh $outputdir $email exitnotok"  >> $qsub5
+	     `chmod a+r $qsub5`
+	     badjobid=`qsub $qsub5`
+	     echo $badjobid >> $output_logs/SUMMARYpbs
+	 fi
+     fi
+
+     if [ $analysis == "REALIGNMENT" -o $analysis == "REALIGN" ]
+     then
+            echo " analysis continues with realignment"
+	    qsub2=$output_logs/qsub.main.realn
+	    echo "#PBS -V" > $qsub2
+	    echo "#PBS -A $pbsprj" >> $qsub2
+	    echo "#PBS -N MAINrealn" >> $qsub2
+	    echo "#pbs -l epilogue=$epligue" >> $qsub2
+	    echo "#PBS -l walltime=$pbscpu" >> $qsub2
+	    echo "#PBS -l nodes=1:ppn=1" >> $qsub2
+	    echo "#PBS -o $output_logs/MAINrealn.ou" >> $qsub2
+	    echo "#PBS -e $output_logs/MAINrealn.in" >> $qsub2
+	    echo "#PBS -q $pbsqueue" >> $qsub2
+	    echo "#PBS -m ae" >> $qsub2
+	    echo "#PBS -M $email" >> $qsub2
+            #echo "#PBS -W depend=afterany:$pbsids" >> $qsub2
+	    echo "$scriptdir/realign.sh $runfile $output_logs/MAINrealn.in $output_logs/MAINrealn.ou $email $output_logs/qsub.main.realn" >> $qsub2
+	    `chmod a+r $qsub2` 
+	    `qsub $qsub2 >> $output_logs/MAINREALNpbs`
+	    echo `date`
+            `qrls -h u $alignids`
+            `qrls -h u $mergeids`
+            `qrls -h u $extraids`
+
+      fi
+
+     `chmod -R 770 $oualigndir`
+     `chmod -R 770 $output_logs`
+
+     echo `date`
 fi

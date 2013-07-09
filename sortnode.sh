@@ -1,7 +1,7 @@
 #!/bin/sh
 redmine=hpcbio-redmine@igb.illinois.edu
 
-if [ $# != 12 ]
+if [ $# -gt 14 ]
 then
 	MSG="parameter mismatch."
         echo -e "jobid:${PBS_JOBID}\nprogram=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine""
@@ -14,14 +14,16 @@ else
     samdir=$2
     javamodule=$3
     outputdir=$4
-    infile=$5
-    outfile=$6
-    rgparms=$7
-    flag=$8
-    elog=$9
-    olog=${10}
-    email=${11}
-    qsubfile=${12}
+    bamfile=$5
+    infile=$6
+    outfile=$7
+    rgparms=$8
+    flag=$9
+    chr=${10}
+    elog=${11}
+    olog=${12}
+    email=${13}
+    qsubfile=${14}
     LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
 
     if [ ! -d $outputdir ]
@@ -36,12 +38,13 @@ else
        echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
        exit 1;
     fi
-    if [ ! -s $outputdir/$infile ]
+    if [ ! -d $samdir ]
     then
-       MSG="$infile bam file to be sorted not found"
+       MSG="$picardir samtools directory not found"
        echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
        exit 1;
     fi
+
     if [ -z $javamodule ]
     then
 	MSG="A value must be specified for JAVAMODULE in configuration file"
@@ -50,6 +53,25 @@ else
     else
         `/usr/local/modules-3.2.9.iforge/Modules/bin/modulecmd bash load $javamodule`
     fi          
+    if [ ! -s $outputdir/$bamfile ]
+    then
+	MSG="$bamfile bam file to be sorted was not found"
+	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	exit 1;
+    fi
+
+    if [ ! -s $outputdir/$infile ]
+    then
+        cd $outputdir
+        $samdir/samtools view -b $bamfile $chr > $infile
+        if [ ! -s $infile ]
+        then
+	    MSG="$infile bam file to be sorted within region:[$chr] was not created"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit 1;
+        fi
+        $samdir/samtools index $infile
+    fi
 
     tmpfile=tmp.wrg.$infile
     parameters=$( echo $rgparms | tr ":" " " )
@@ -70,8 +92,6 @@ else
            $parameters \
 	   VALIDATION_STRINGENCY=SILENT
     else
-       if [ $sortflag == "MAYO" ]
-       then
 	   echo "alignment was done at Mayo. checking if readgroup info is present"
 	   $samdir/samtools view -H $infile > $infile.header
 	   match=$( cat $file.header | grep '^@RG' )
@@ -91,12 +111,6 @@ else
 		   $parameters \
 		   VALIDATION_STRINGENCY=SILENT
 	   fi
-       else
-           MSG="Invalid value for sortflag in realignment step"
-	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-	   exit 1;
-          
-       fi
     fi
 
     if [ ! -s $tmpfile ]
