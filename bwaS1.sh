@@ -1,5 +1,6 @@
 #!/bin/sh
-redmine=hpcbio-redmine@igb.illinois.edu
+#redmine=hpcbio-redmine@igb.illinois.edu
+redmine=grendon@illinois.edu
 if [ $# != 11 ]
 then
         MSG="parameter mismatch"
@@ -26,6 +27,13 @@ else
         ## checking quality scores to gather additional params
         qscores=$scriptdir/checkFastqQualityScores.pl
         ill2sanger=`perl $qscores $R 10000`
+        exitcode=$?
+        if [ exitcode -ne 0 ]
+        then
+            MSG="QC scores for $R not generated.  exitcode=$exitcode. alignment failed"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+            exit $exitcode;
+        fi
         if [ $ill2sanger -gt 65 ]
         then
            qual="-I"
@@ -35,6 +43,13 @@ else
 
         cd $outputdir
         $aligndir/bwa aln $parameters $qual $ref $R > $outputfile
+        exitcode=$?
+        if [ exitcode -ne 0 ]
+        then
+            MSG="bwa aln command failed on $R.  exitcode=$exitcode. alignment failed"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+            exit $exitcode;
+        fi
         if [ ! -s $outputfile ]
         then
             MSG="$outputfile aligned file not created. alignment failed"

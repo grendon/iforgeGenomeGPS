@@ -1,6 +1,6 @@
 #!/bin/sh
-redmine=hpcbio-redmine@igb.illinois.edu
-
+#redmine=hpcbio-redmine@igb.illinois.edu
+redmine=grendon@illinois.edu
 if [ $# != 12 ] 
 then
     MSG="parameter mismatch."
@@ -74,7 +74,7 @@ else
 
     if [ `expr length $infiles` -lt 1 ]
     then
-       MSG="$infiles empty list of aligned files to merge"
+       MSG="$infiles empty list of aligned files to merge. mergenovo stopped "
        echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
        exit 1;
     fi
@@ -87,25 +87,59 @@ else
     ## step 1: sort-merge and add RG tags all at once
     cd $outputdir
     $novodir/novosort --tmpdir $outputdir --rg "${rgheader}" --threads $threads $listfiles > $tmpfilewdups 
-
-
+    exitcode=$?
+    if [ $exitcode -ne 0 ]
+    then
+         MSG="novosort command failed.  exitcode=$exitcode mergenovo stopped"
+         echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+         exit $exitcode;
+    fi
+    echo `date`
     if [ ! -s $tmpfilewdups ]
     then
-        MSG="$tmpfilewdups merged file not created. novosort step failed"
+        MSG="$tmpfilewdups merged file not created. mergenovo stopped "
 	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-        exit 1;
+         exit 1;
     fi
     echo `date`
 
     ## step 2: indexing merged bam file    
     $samdir/samtools index $tmpfilewdups
-    $samdir/samtools flagstat $tmpfilewdups > $tmpfilewdups.flagstat
+    exitcode=$?
+    if [ $exitcode -ne 0 ]
+    then
+         MSG="samtools index command failed.  exitcode=$exitcode. mergenovo stopped "
+         echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+         exit $exitcode;
+    fi
+    echo `date`
+    #$samdir/samtools flagstat $tmpfilewdups > $tmpfilewdups.flagstat
     $samdir/samtools view -H $tmpfilewdups > $tmpfilewdups.header
+    exitcode=$?
+    if [ $exitcode -ne 0 ]
+    then
+         MSG="samtools index command failed.  exitcode=$exitcode. mergenovo stopped "
+         echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+         exit $exitcode;
+    fi
+    echo `date`
+    java -Xmx6g -Xms512m -jar $picardir/CollectAlignmentSummaryMetrics.jar \
+        INPUT=$tmpfilewdups \
+        OUTPUT=$tmpfilewdups.flagstat \
+        VALIDATION_STRINGENCY=SILENT
+
+     exitcode=$?
+     if [ $exitcode -ne 0 ]
+     then
+         MSG="collectalignmentsummarymetrics command failed.  exitcode=$exitcode . mergenovo stopped "
+         echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+         exit $exitcode;
+     fi
     echo `date`
         
     ## step 3: marking and or removing duplicates        
 
-    if [ $markdup == "YES" ]
+    if [ $markdup == "YES" -a $deldup != "TRUE" ]
     then
         echo "marking duplicates in sorted bam file"
         java -Xmx6g -Xms512m -jar $picardir/MarkDuplicates.jar \
@@ -117,53 +151,124 @@ else
 	    MAX_RECORDS_IN_RAM=null \
 	    CREATE_INDEX=true \
 	    VALIDATION_STRINGENCY=SILENT
-	    
+
+	exitcode=$?
+	if [ $exitcode -ne 0 ]
+	then
+            MSG="markduplicates command failed.  exitcode=$exitcode mergenovo stopped"
+            echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+            exit $exitcode;
+	fi
 	echo `date`
 	if [ ! -s $outfilewdups ]
 	then
-	    MSG="$outfilewdups file not created. markDuplicates step failed"
+	    MSG="$outfilewdups file not created. markDuplicates step failed. mergenovo stopped "
 	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
 	fi
         echo "indexing bam file w marked duplicates"
 	$samdir/samtools index $outfilewdups
-	$samdir/samtools flagstat $outfilewdups > $outfilewdups.flagstat
-	$samdir/samtools view -H $outfilewdups > $outfilewdups.header
-    else
-	echo "we need to copy tmpfilewdups to outfilewdups now"
-	echo "in case realignment follows"
-	`cp $tmpfilewdups $outfilewdups`
-        `cp $tmpfilewdups.flagstat $outfilewdups.flagstat`
-        `cp $tmpfilewdups.header $outfilewdups.header`
-    fi
-
-    echo `date`
-
-    ## step 4: (optional) remove duplicates
-    if [ $deldup == "TRUE" ]
-    then
-        echo "removing marked duplicates in sorted bam file"
-        java -Xmx6g -Xms512m -jar $picardir/MarkDuplicates.jar \
-	    INPUT=$tmpfilewdups \
-	    OUTPUT=$outfilenodups \
-	    TMP_DIR=$outputdir \
-	    METRICS_FILE=$outfilenodups.dup.metrics \
-	    MAX_RECORDS_IN_RAM=null \
-            ASSUME_SORTED=true \
-	    CREATE_INDEX=true \
-	    REMOVE_DUPLICATES=true \
-	    VALIDATION_STRINGENCY=SILENT
-	echo `date`
-	if [ ! -s $outfilenodups ]
+	exitcode=$?
+	if [ $exitcode -ne 0 ]
 	then
-	    MSG="$outfilenodups file not created. RemoveDuplicates step failed"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-	    exit 1;
+            MSG="samtools index command failed.  exitcode=$exitcode mergenovo stopped"
+            echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+            exit $exitcode;
 	fi
-        echo "indexing bam file w removed duplicates"
-	$samdir/samtools index $outfilenodups
-	$samdir/samtools flagstat $outfilenodups > $outfilenodups.flagstat
-	$samdir/samtools view -H $outfilenodups > $outfilenodups.header
+	echo `date`
+	#$samdir/samtools flagstat $outfilewdups > $outfilewdups.flagstat
+	$samdir/samtools view -H $outfilewdups > $outfilewdups.header
+	exitcode=$?
+	if [ $exitcode -ne 0 ]
+	then
+            MSG="samtools view command failed.  exitcode=$exitcode mergenovo stopped"
+            echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+            exit $exitcode;
+	fi
+	echo `date`
+	java -Xmx6g -Xms512m -jar $picardir/CollectAlignmentSummaryMetrics.jar \
+            INPUT=$outfilewdups \
+            OUTPUT=$outfilewdups.flagstat \
+            VALIDATION_STRINGENCY=SILENT
+
+	exitcode=$?
+	if [ $exitcode -ne 0 ]
+	then
+            MSG="collectalignmentsummarymetrics command failed.  exitcode=$exitcode mergenovo stopped"
+            echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+            exit $exitcode;
+	fi
+	echo `date`
+    else 
+        echo "remove duplicates or do nothing"
+	if [ $deldup == "TRUE" ]
+	then
+            echo "removing marked duplicates in sorted bam file"
+            java -Xmx6g -Xms512m -jar $picardir/MarkDuplicates.jar \
+		INPUT=$tmpfilewdups \
+		OUTPUT=$outfilenodups \
+		TMP_DIR=$outputdir \
+		METRICS_FILE=$outfilenodups.dup.metrics \
+		MAX_RECORDS_IN_RAM=null \
+		ASSUME_SORTED=true \
+		CREATE_INDEX=true \
+		REMOVE_DUPLICATES=true \
+		VALIDATION_STRINGENCY=SILENT
+
+	    exitcode=$?
+	    if [ $exitcode -ne 0 ]
+	    then
+		MSG="markduplicates command failed.  exitcode=$exitcode mergenovo stopped"
+		echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+	    fi
+	    echo `date`
+	    if [ ! -s $outfilenodups ]
+	    then
+		MSG="$outfilenodups file not created. RemoveDuplicates step failed. mergenovo stopped "
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit 1;
+	    fi
+            echo "indexing bam file w removed duplicates"
+	    $samdir/samtools index $outfilenodups
+	    exitcode=$?
+	    if [ $exitcode -ne 0 ]
+	    then
+		MSG="samtools index command failed.  exitcode=$exitcode mergenovo stopped"
+		echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+	    fi
+	    echo `date`
+	    #$samdir/samtools flagstat $outfilenodups > $outfilenodups.flagstat
+	    $samdir/samtools view -H $outfilenodups > $outfilenodups.header
+	    exitcode=$?
+	    if [ $exitcode -ne 0 ]
+	    then
+		MSG="samtools view command failed.  exitcode=$exitcode mergenovo stopped"
+		echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+	    fi
+	    echo `date`
+	    java -Xmx6g -Xms512m -jar $picardir/CollectAlignmentSummaryMetrics.jar \
+		INPUT=$outfilenodups \
+		OUTPUT=$outfilenodups.flagstat \
+		VALIDATION_STRINGENCY=SILENT
+
+	    exitcode=$?
+	    if [ $exitcode -ne 0 ]
+	    then
+		MSG="collectalignmentsummarymetrics command failed.  exitcode=$exitcode mergenovo stopped"
+		echo -e "program=$0 failed at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+	    fi
+	    echo `date`
+	else
+	    echo "we need to copy tmpfilewdups to outfilewdups now"
+	    echo "these output files are not suitable for realignment"
+	    `cp $tmpfilewdups $outfilewdups`
+            `cp $tmpfilewdups.flagstat $outfilewdups.flagstat`
+            `cp $tmpfilewdups.header $outfilewdups.header`
+	    echo `date`
+        fi
     fi
-    echo `date`
 fi

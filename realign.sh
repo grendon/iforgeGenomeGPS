@@ -2,8 +2,8 @@
 #
 # realign.sh
 # Second module in the GGPS analysis pipeline
-redmine=hpcbio-redmine@igb.illinois.edu
-
+#redmine=hpcbio-redmine@igb.illinois.edu
+redmine=grendon@illinois.edu
 if [ $# != 5 ]
 then
 	MSG="parameter mismatch. "
@@ -38,7 +38,6 @@ else
         extradir=$outputdir/extractreads
         realrecalflag=$( cat $runfile | grep -w REALIGNORDER | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
         paired=$( cat $runfile | grep -w PAIRED | cut -d '=' -f2 )
-        inputdir=$( cat $runfile | grep -w SAMPLEDIR | cut -d '=' -f2 )
         samplefileinfo=$( cat $runfile | grep -w SAMPLEFILENAMES | cut -d '=' -f2 )
         rlen=$( cat $runfile | grep -w READLENGTH | cut -d '=' -f2 )
         multisample=$( cat $runfile | grep -w MULTISAMPLE | cut -d '=' -f2 | tr '[a-z]' '[A-Z]' )
@@ -100,6 +99,9 @@ else
 	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
            exit 1;
         fi
+
+        pipeid=$( cat $output_logs/MAINpbs )
+        
         if [ ! -d $outputdir ]
         then
 	    mkdir -p $outputdir
@@ -132,84 +134,93 @@ else
             realrecalflag="1"
         fi
         
-        ## preprocessing step; only when alignment was not performed inhouse
+
         listfiles="";
         sep=":";
         JOBSmayo=""
         JOBSncsa=""
 
-        if [ $resortflag == "YES" -a $analysis == "REALIGN_ONLY" ]
-        then
-            echo "alignment was NOT done inhouse. Need to resort bam files. Checking input files"
+        # finding all aligned BAMs to be realigned-recalibrated
 
-            counter=0
+        if [ $analysis == "REALIGN" -o $analysis == "REALIGNMENT" ]
+        then
+	    echo "alignment was done inhouse. no need to resort"
+	    echo "We need to wait until the alignment jobs enter the queue"
+
+	    while [ ! -s $output_logs/ALN_NCSA_jobids ]
+	    do
+		`sleep 60s`
+	    done
+            listfiles=$outputdir/align
+	    JOBSncsa=$( cat $output_logs/ALN_NCSA_jobids | sed "s/\.[a-z]*//g" | tr "\n" ":" | sed "s/::/:/g" )
+        else
+            echo "we need to check entries in samplefileinfo before launching other realignment analyses"
             while read sampledetail
             do
                 echo "processing next line in file ..."
-		len=`expr length ${sampledetail}`
-		if [ $len -eq 0 ]
+		if [ `expr ${#sampledetail}` -lt 7 ]
 		then
-		    echo "line is empty; nothing to do. $sampledetail"
+		    echo "skip empty line"
                 else
 		    echo "preprocessing for realignment $sampledetail"
-                    echo "expected format--> BAM:sample_name=bamfilename.bam"
-
-		    samplename=$( echo $sampledetail | cut -d '=' -f2 )
-                    sampledirname=`dirname $samplename`
-                    len1=`expr length ${sampledirname}`
-                    if [ $len1 -lt 1 ]
+		    bamfile=$( echo $sampledetail | cut -d '=' -f2 )
+                    sampletag=$( echo $sampledetail | cut -d '=' -f1 | cut -d ':' -f2 )
+                    if [ `expr ${#bamfile}` -lt 1 ]
                     then
-			MSG="$sampledirname parsing file failed. realignment failed."
+			MSG="parsing SAMPLEFILENAMES file failed. realignment failed."
 	                echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 			exit 1;
                     fi
-
-                    bamfile=$( echo $samplename )
-                    lenbam=`expr length $bamfile`
-                    if [ $lenbam -lt 1 ]
+                    if [ `expr ${#sampletag}` -lt 1 ]
                     then
-			MSG="$bamfile parsing file failed. realignment failed."
+			MSG="parsing SAMPLEFILENAMES file failed. realignment failed."
 	                echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 			exit 1;
                     fi
 		
 		    if [ ! -s $bamfile ]
 		    then
-			MSG="$bamfile input bam file not found"
+			MSG="parsing SAMPLEFILENAMES file failed. realignment failed"
 	                echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 			exit;
 		    fi
+                fi
+	    done < $samplefileinfo
+        fi   
 
+        if [ $resortflag == "YES" -a $analysis == "REALIGN_ONLY" ]
+        then
+            echo "alignment was NOT done inhouse. Need to resort bam files. Checking input files"
+            while read sampledetail
+            do
+               if [ `expr ${#sampledetail}` -lt 7 ]
+               then
+                    echo "skip empty line"
+               else
+		    samplename=$( echo $sampledetail | cut -d '=' -f2 )
                     prefix=`basename $samplename .wrg.sorted.bam`
 		    outputalign=$outputdir/align/$prefix
 		    outputlogs=$output_logs/align/$prefix
+                    tmpbamfile=$samplename
+		    sortedplain=${prefix}.wrg.sorted.bam
+		    sorted=${prefix}.wdups.sorted.bam
+		    sortednodups=${prefix}.nodups.sorted.bam
 
                     if [ ! -d $outputalign ]
                     then
 			mkdir -p $outputalign
-                        let counter+=1
-                        tmpbamfile=$bamfile
-			sortedplain=${prefix}_$counter.wrg.sorted.bam
-			sorted=${prefix}_$counter.wdups.sorted.bam
-			sortednodups=${prefix}_$counter.nodups.sorted.bam
 			if [ ! -d $outputlogs ]
 			then
 			    mkdir -p $outputlogs
                         else
                             `rm -r $outputlogs/*`
 			fi
-                    else
-                        let counter+=1
-                        tmpbamfile=$bamfile
-			sortedplain=${prefix}_$counter.wrg.sorted.bam
-			sorted=${prefix}_$counter.wdups.sorted.bam
-			sortednodups=${prefix}_$counter.nodups.sorted.bam
 		   fi
 
 		   qsub1=$outputlogs/qsub.sortbammayo.$prefix
 		   echo "#PBS -V" > $qsub1
 		   echo "#PBS -A $pbsprj" >> $qsub1
-		   echo "#PBS -N sortbamayo_${prefix}" >> $qsub1
+		   echo "#PBS -N ${pipeid}_sortbamayo_${prefix}" >> $qsub1
                    echo "#PBS -l epilogue=$epilogue" >> $qsub1
 		   echo "#PBS -l walltime=$pbscpu" >> $qsub1
 		   echo "#PBS -l nodes=1:ppn=16" >> $qsub1
@@ -227,7 +238,7 @@ else
 		   qsub2=$outputlogs/qsub.extractreadsbam.$prefix
 		   echo "#PBS -V" > $qsub2
 		   echo "#PBS -A $pbsprj" >> $qsub2
-		   echo "#PBS -N extrbam${prefix}" >> $qsub2
+		   echo "#PBS -N ${pipeid}_extrbam${prefix}" >> $qsub2
                    echo "#PBS -l epilogue=$epilogue" >> $qsub2
 		   echo "#PBS -l walltime=$pbscpu" >> $qsub2
 		   echo "#PBS -l nodes=1:ppn=16" >> $qsub2
@@ -247,38 +258,41 @@ else
 	    done < $samplefileinfo
             cp $output_logs/REALSORTEDMAYOpbs $output_logs/ALN_MAYO_jobids
             JOBSmayo=$( cat $output_logs/ALN_MAYO_jobids | sed "s/\.[a-z]*//g" | tr "\n" ":" | sed "s/::/:/g" )
-        else
-            if [ $analysis == "REALIGNONLY" -o $analysis == "REALIGN_ONLY" ]
+        fi
+
+        if [ $resortflag != "YES" -a $analysis == "REALIGN_ONLY" ]
+        then
+	    echo "alignment was NOT done inhouse. BAM files will not be resorted"
+            if [ $revertsam != "1" ]
             then
-		echo "alignment was NOT done inhouse. BAM files will not be resorted"
-                if [ $revertsam != "1" ]
-                then
-                    echo "input is aligned bam that is suitable for realignment and recalibration... no need for preprocessing"
-                    while read sampledetail
-                    do
-			bam=$( echo $sampledetail | cut -d "=" -f2 )
-			listfiles=${bam}${sep}${listfiles}
-		    done < $samplefileinfo
-                else
-                    echo "revertsam needs to be run on input bams..."
-                    while read sampledetail
-                    do
-                      if [ `expr length ${sampledetail}` -gt 0 ]
-                      then
+                echo "input is aligned bam that is suitable for realignment and recalibration... no need for preprocessing"
+                while read sampledetail
+                do
+		    bam=$( echo $sampledetail | cut -d "=" -f2 )
+		    listfiles=${bam}${sep}${listfiles}
+		done < $samplefileinfo
+            else
+                echo "revertsam needs to be run on input bams..."
+                while read sampledetail
+                do
+                    if [ `expr length ${sampledetail}` -lt 7 ]
+                    then
+                        echo "skip empty line"
+                    else
 			bamfile=$( echo $sampledetail | cut -d "=" -f2 )
-			if [ `expr length ${bamfile}` -lt 1 ]
+			if [ `expr ${#bamfile}` -lt 1 ]
                         then
                            echo "skip empty line"
                         else
                             prefix=`basename $bamfile .bam`
-                            dirname=`dirname ${bamfile}`
-                            revbamfile=$dirname/${prefix}_revsam
+                            dirname=$realigndir
+                            revbamfile=$dirname/${prefix}.revsam
 
 			    listfiles=${revbamfile}${sep}${listfiles}
 			    qsub2=$output_logs/qsub.revertinputbam.$prefix
 			    echo "#PBS -V" > $qsub2
 			    echo "#PBS -A $pbsprj" >> $qsub2
-			    echo "#PBS -N revertinputbam_${prefix}" >> $qsub2
+			    echo "#PBS -N ${pipeid}_revertinputbam_${prefix}" >> $qsub2
 			    echo "#PBS -l epilogue=$epilogue" >> $qsub2
 			    echo "#PBS -l walltime=$pbscpu" >> $qsub2
 			    echo "#PBS -l nodes=1:ppn=16" >> $qsub2
@@ -293,30 +307,15 @@ else
 			    `qhold -h u $revbamid`
 			    echo $revbamid >> $output_logs/REVERTINPUTBAMpbs
                         fi
-                      else
-                        echo "skip empty line"
                       fi
                     done < $samplefileinfo
 		    JOBSmayo=$( cat $output_logs/REVERTINPUTBAMpbs | sed "s/\.[a-z]*//g" | tr "\n" ":" | sed "s/::/:/g" )
                 fi
-            else
-		echo "alignment was done inhouse. no need to resort"
-		echo "We need to wait until the alignment jobs enter the queue"
-
-		while [ ! -s $output_logs/ALN_NCSA_jobids ]
-		do
-		    `sleep 60s`
-		done
-                ##the aligned bam files may not be ready; just pass the dirname
-                listfiles=$outputdir/align
-		JOBSncsa=$( cat $output_logs/ALN_NCSA_jobids | sed "s/\.[a-z]*//g" | tr "\n" ":" | sed "s/::/:/g" )
-            fi
         fi
 
-        ## preprocessing is done. Now we can realign and recalibrate bam files
-        echo "preprocessing of bam files is done. ready to realign"
 
-        # grab job ids for align, merge and jobs
+        # grab job ids for align and for preprocessing done in this module
+
         alignids=$( cat $output_logs/ALIGNEDpbs | sed "s/\.[a-z]*//" | tr "\n" " " )
         mergeids=$( cat $output_logs/MERGEDpbs | sed "s/\.[a-z]*//" | tr "\n" " " )
         sortedmayoids=$( cat $output_logs/REALSORTEDMAYOpbs | sed "s/\.[a-z]*//" | tr "\n" " " )
@@ -326,7 +325,7 @@ else
 	qsub3=$realignlogdir/qsub.realign_new
 	echo "#PBS -V" > $qsub3
 	echo "#PBS -A $pbsprj" >> $qsub3
-	echo "#PBS -N real_recal" >> $qsub3
+	echo "#PBS -N ${pipeid}_realign_new" >> $qsub3
         echo "#PBS -l epilogue=$epilogue" >> $qsub3
 	echo "#PBS -l walltime=$pbscpu" >> $qsub3
 	echo "#PBS -l nodes=1:ppn=16" >> $qsub3
@@ -354,7 +353,6 @@ else
         `qrls -h u $revbamids`
         `qrls -h u $realrecaljob`
 
-	#`sleep 5s`
         echo "done realig/recalibrating  all bam files."
         echo `date`
 	`chmod -R 770 $outputdir/`

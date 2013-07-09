@@ -1,6 +1,6 @@
 #!/bin/sh
-redmine=hpcbio-redmine@igb.illinois.edu
-
+#redmine=hpcbio-redmine@igb.illinois.edu
+redmine=grendon@illinois.edu
 if [ $# -le 7 -o $# -gt 10 ]
 then
         MSG="parameter mismatch"
@@ -8,7 +8,7 @@ then
 	exit 1;
 else
 	set -x
-	echo `date`	
+	echo `date`
 	output=$1
 	bam=$2
 	run_info=$3
@@ -19,10 +19,6 @@ else
 	igv=$8
         extradir=$9
         LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
-	if [ ${10} ]
-	then
-	    group=${10}
-	fi
 
         if [ ! -s $run_info ]
         then
@@ -87,24 +83,44 @@ else
 	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
-        if [ ! -s $output/$bam ]
+
+        cd $output
+
+        if [ ! -s $bam ]
         then
-            MSG="$output/$bam BAM file not found"
+            MSG="$bam BAM file not found"
 	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
+	if [ ! -s $bam.bai ]
+	then
+	    echo `date`	
+	    $samtools/samtools index $bam
+            exitcode=$?
+            if [ $exitcode -ne 0 ]
+            then
+		MSG="samtools view command failed.  exitcode=$exitcode extract reads failed"
+		echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+            fi
+	    echo `date`	
+	fi	
         if [ ! -d $extradir ]
         then
 	    mkdir -p $extradir
         fi
-	if [ ! -s $output/$bam.bai ]
-	then
-                cd $output
-		$samtools/samtools index $output/$bam
-	fi	
-	
+
+	echo `date`
         ref=$refdir/$refgen
 	chrs=`cat $ref.fai | cut -f1 | tr ":" "\n"`
+        exitcode=$?
+        if [ $exitcode -ne 0 ]
+        then
+	    MSG="extracting all chr from indexed reference genome failed.  exitcode=$exitcode extract reads failed"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+        fi
+	echo `date`
 	i=1
 	for chr in $chrs
 	do
@@ -114,139 +130,117 @@ else
 		let i=i+1
 	    fi
 	done
+	echo `date`
 
-	## extract read for specific chromosome
+	## extract read for excluded chromosomes
 	input=""
         cd $output
 	for i in $(seq 1 ${#chrArray[@]})
 	do
+            echo "extracting next chr[${i}] from aligned bam"
+            echo `date`
 	    chr=${chrArray[$i]}
-	    $samtools/samtools view -b $output/$bam $chr > $output/$bam.$chr.bam
-            if [ ! -s $output/$bam.$chr.bam ]
+	    $samtools/samtools view -b $bam $chr > $bam.$chr.bam
+            exitcode=$?
+            if [ $exitcode -ne 0 ]
             then
-                MSG="Warning:$output/$bam.$chr.bam file for chr=$chr not created. extract reads failed"
+		MSG="samtools view command failed.  exitcode=$exitcode extract reads failed"
+		echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+            fi
+            if [ ! -s $bam.$chr.bam ]
+            then
+                MSG="$bam.$chr.bam file  not created. extract reads failed"
 		echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
                 exit 1;
 	    fi
-	    $samtools/samtools index $output/$bam.$chr.bam
-	    input="$input INPUT=$output/$bam.$chr.bam"
+	    $samtools/samtools index $bam.$chr.bam
+            exitcode=$?
+            if [ $exitcode -ne 0 ]
+            then
+		MSG="samtools index command failed.  exitcode=$exitcode extract reads failed"
+		echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+            fi
+	    input="$input INPUT=$bam.$chr.bam"
 	done
+        echo `date`
 
 	### extract unmapped reads
-	$samtools/samtools view -b -f 12 $output/$bam > $output/$bam.unmapped.bam
-        if [ ! -s $output/$bam.unmapped.bam ]
+	$samtools/samtools view -b -f 12 $bam > $bam.unmapped.bam
+        exitcode=$?
+        if [ $exitcode -ne 0 ]
         then
-	    MSG="Warning: $output/$bam.unmapped.bam unmapped reads -file not created. extract reads failed"
+	    MSG="samtools view command failed.  exitcode=$exitcode extract reads failed"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+        fi
+        if [ ! -s $bam.unmapped.bam ]
+        then
+	    MSG="$bam.unmapped.bam unmapped reads -file not created. extract reads failed"
 	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
 	fi
-	$samtools/samtools index $output/$bam.unmapped.bam
-	input="$input INPUT=$output/$bam.unmapped.bam"
+        echo `date`
+	$samtools/samtools index $bam.unmapped.bam
+        exitcode=$?
+        if [ $exitcode -ne 0 ]
+        then
+	    MSG="samtools index command failed.  exitcode=$exitcode extract reads failed"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+        fi
+	input="$input INPUT=$bam.unmapped.bam"
+        echo `date`
 
         java -Xmx6g -Xms512m -jar $picard/MergeSamFiles.jar $input \
         MAX_RECORDS_IN_RAM=null \
         TMP_DIR=$outputdir \
-        OUTPUT=$output/$bam.extra.bam \
+        OUTPUT=$bam.extra.bam \
         CREATE_INDEX=true \
         USE_THREADING=true \
         VALIDATION_STRINGENCY=SILENT
 
-        if [ ! -s $output/$bam.extra.bam ]
+        exitcode=$?
+        if [ $exitcode -ne 0 ]
         then
-	    MSG="Warning: BAM file of extracted reads, step failed"
+	    MSG="mergesamfiles command failed.  exitcode=$exitcode extract reads failed"
+	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+        fi
+        if [ ! -s $bam.extra.bam ]
+        then
+	    MSG="Merged BAM file of extracted reads not created. extract reads failed"
 	    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
-        
+        echo `date`        
         ## moving temporary files to extradir and results to delivery folder
 
-        mv $output/$bam.unmapped* $extradir/
-        mv $output/$bam.chr* $extradir/
-
-	if [ $group ]
+        mv $bam.unmapped* $extradir/
+        mv $bam.chr* $extradir/
+	if [ $delivery != "NA" ]
 	then
-            echo "group info was passed as argument to this script"
-
-
-	    sample_info=$( cat $run_info | grep -w '^SAMPLE_INFO' | cut -d '=' -f2)
-	    samples=$(cat $run_info | grep -w "^$group" | cut -d '=' -f2 | tr "\t" " ")	
-	    for sample in $samples
-	    do	
-		sam=`echo $samples | tr ":" "\n"| grep -v "$sample" | tr "\n" " "`
-		gr=""
-		for s in $sam
-		do
-		    a="ID:$s|";
-		    gr="$gr $a"
-		done
-		gr=`echo $gr |  sed "s/|$//"`
-		$samtools/samtools view -b -r $sample $output/$bam.extra.bam > $output/$sample.extra.bam
-                if [ ! -s $output/$sample.extra.bam ]
-                then
-                    MSG="Warning: $output/$sample.extra.bam BAM file with extracted reads not created. extract reads failed."
-		    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-		    exit 1;
-                fi
-		$samtools/samtools view -H $output/$sample.extra.bam | grep -E -v "$gr" | $samtools/samtools reheader - $output/$sample.extra.bam > $output/$sample.extra.re.bam
-                if [ ! -s $output/$sample.extra.re.bam ]
-                then
-                    MSG="Warning: $output/$sample.extra.re.bam new header of BAM file with extracted reads not created. extract reads failed."
-		    echo -e "program=$0 stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-		    exit 1;
-                fi
-		mv $output/$sample.extra.re.bam $output/$sample.extra.bam
-		$samtools/samtools index $output/$sample.extra.bam
-
-		if [ $delivery != "NA" ]
-		then
-		    delivery_folder=$outputdir/$delivery
-		    if [ ! -d $delivery_folder ]
-		    then
-			mkdir $delivery_folder
-			mkdir $delivery_folder/IGV_BAM
-                    else
-			if [ ! -d $delivery_folder/IGV_BAM ]
-			then
-			    mkdir $delivery_folder/IGV_BAM
-			fi
-                    fi
-		    mv $output/$bam.extra.bam $delivery_folder/IGV_BAM
-		    mv $output/$bam.extra.bam.bai $delivery_folder/IGV_BAM
-		else	
-                    if [ ! -d $igv ]
-                    then
-			mkdir $igv
-                    fi
-		    mv $output/$bam.extra.bam $igv/
-		    mv $output/$bam.extra.bam.bai $igv/
-		fi    
-	    done
-	    #rm $output/$bam.extra.bam $output/$bam.extra.bam.bai
-	else
-            echo "the group argument was not passed to this script"
-	    if [ $delivery != "NA" ]
+	    delivery_folder=$outputdir/$delivery
+	    if [ ! -d $delivery_folder ]
 	    then
-		delivery_folder=$outputdir/$delivery
-		if [ ! -d $delivery_folder ]
-		then
                     mkdir $delivery_folder
                     mkdir $delivery_folder/IGV_BAM
-                else
-                   if [ ! -d $delivery_folder/IGV_BAM ]
-                   then
-                       mkdir $delivery_folder/IGV_BAM
-                   fi
-                fi
-		mv $output/$bam.extra.bam $delivery_folder/IGV_BAM
-		mv $output/$bam.extra.bam.bai $delivery_folder/IGV_BAM
-	    else	
-                if [ ! -d $igv ]
+            else
+                if [ ! -d $delivery_folder/IGV_BAM ]
                 then
-                    mkdir $igv
+                    mkdir $delivery_folder/IGV_BAM
                 fi
-		mv $output/$bam.extra.bam $igv/
-		mv $output/$bam.extra.bam.bai $igv/
-	    fi		
-	fi
+            fi
+	    mv $bam.extra.bam $delivery_folder/IGV_BAM
+	    mv $bam.extra.bam.bai $delivery_folder/IGV_BAM
+	else	
+            if [ ! -d $igv ]
+            then
+                mkdir $igv
+            fi
+	    mv $bam.extra.bam $igv/
+	    mv $bam.extra.bam.bai $igv/
+	fi		
 	echo `date`
 fi 

@@ -1,6 +1,6 @@
 #!/bin/sh
-redmine=hpcbio-redmine@igb.illinois.edu
-
+#redmine=hpcbio-redmine@igb.illinois.edu
+redmine=grendon@illinois.edu
 if [ $# -gt 15 ]
 then
 	MSG="parameter mismatch."
@@ -26,6 +26,14 @@ else
         ## checking quality scores to gather additional params
         qscores=$scriptdir/checkFastqQualityScores.pl
         ill2sanger=`perl $qscores $R1 10000`
+        exitcode=$?
+        if [ $exitcode -ne 0 ]
+        then
+           MSG="checkfastqc command failed.  exitcode=$exitcode  novosplit alignment failed"
+	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+           exit $exitcode;
+        fi
+
         if [ $ill2sanger -gt 65 ]
         then
            qual="-F ILMFQ"
@@ -50,10 +58,18 @@ else
            $alignerdir/novoalign -d $ref -f $R1 -o SAM $parameters $qual > $samfile
         fi
 
+        exitcode=$?
         LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
+        if [ $exitcode -ne 0 ]
+        then
+           MSG="novoalign command failed.  exitcode=$exitcode  novosplit alignment failed"
+	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+           exit $exitcode;
+        fi
+
         if [ ! -s $samfile ]
         then
-           MSG="$samfile aligned file not created. alignment failed"
+           MSG="$outputdir/$samfile aligned file not created.  novosplit alignment failed"
 	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
            exit 1;
         fi
@@ -63,7 +79,7 @@ else
 	$samdir/samtools view -bS -o $bamfile $samfile
 	if [ ! -s $bamfile ]
 	then
-	    MSG="$outputdir/$bamfile BAM file not created. sam2bam step failed during alignment."
+	    MSG="$outputdir/$bamfile BAM file not created. sam2bam step failed during  novosplit alignment."
 	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
 	fi       

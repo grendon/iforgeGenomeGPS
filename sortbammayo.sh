@@ -1,6 +1,6 @@
 #!/bin/sh
-redmine=hpcbio-redmine@igb.illinois.edu
-
+#redmine=hpcbio-redmine@igb.illinois.edu
+redmine=grendon@illinois.edu
 if [ $# != 10 ] 
 then
 	MSG="parameter mismatch."
@@ -96,12 +96,22 @@ else
         OUTPUT=$tmpfilerevertsam \
 	VALIDATION_STRINGENCY=SILENT
 
+	exitcode=$?
+	if [ $exitcode -ne 0 ]
+	then
+	    MSG="revertsam command failed exitcode=$exitcode  sortbammayo failed"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+	fi
+	echo `date`		
+
 	if [ ! -s $tmpfilerevertsam ]
 	then
-	    MSG="$tmpfilerevertsam bam file not created. revertsam step failed"
+	    MSG="$tmpfilerevertsam bam file not created.  sortbammayo failed"
 	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
 	fi    
+
 	java -Xmx6g -Xms512m -jar $picardir/AddOrReplaceReadGroups.jar \
 	    INPUT=$tmpfilerevertsam \
 	    OUTPUT=$tmpfile \
@@ -110,6 +120,16 @@ else
 	    SORT_ORDER=unsorted \
 	    $RGparms \
 	    VALIDATION_STRINGENCY=SILENT
+
+	exitcode=$?
+	if [ $exitcode -ne 0 ]
+	then
+	    MSG="addorreplacereadgroup command failed exitcode=$exitcode  sortbammayo failed"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+	fi
+	echo `date`		
+
     else
         echo "just addreadgroup"
 	java -Xmx6g -Xms512m -jar $picardir/AddOrReplaceReadGroups.jar \
@@ -120,11 +140,19 @@ else
 	    SORT_ORDER=unsorted \
 	    $RGparms \
 	    VALIDATION_STRINGENCY=SILENT
+	exitcode=$?
+	if [ $exitcode -ne 0 ]
+	then
+	    MSG="addorreplacereadgroup command failed exitcode=$exitcode  sortbammayo failed"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+	fi
+	echo `date`		
     fi
 
     if [ ! -s $tmpfile ]
     then
-	MSG="$tmpfile bam file not created. add_readGroup step failed"
+	MSG="$tmpfile bam file not created. add_readGroup step failed sortbammayo failed"
 	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	exit 1;
     fi    
@@ -139,10 +167,18 @@ else
 	CREATE_INDEX=true \
 	VALIDATION_STRINGENCY=SILENT
 
-    echo `date`
+    exitcode=$?
+    if [ $exitcode -ne 0 ]
+    then
+	MSG="sortsam command failed exitcode=$exitcode  sortbammayo failed"
+	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	exit $exitcode;
+    fi
+    echo `date`		
+
     if [ ! -s $sortedplain ]
     then
-	MSG="$sortedplain sorted bam file not created. sort step failed"
+	MSG="$sortedplain sorted bam file not created.  sortbammayo failed"
        echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	exit 1;
     fi
@@ -156,7 +192,7 @@ else
         
     # marking and or removing duplicates        
 
-    if [ $markdup == "YES" ]
+    if [ $markdup == "YES" -a $deldup != "TRUE" ]
     then
         echo "marking duplicates in sorted bam file"
         java -Xmx6g -Xms512m -jar $picardir/MarkDuplicates.jar \
@@ -167,11 +203,19 @@ else
 	    MAX_RECORDS_IN_RAM=null \
 	    CREATE_INDEX=true \
 	    VALIDATION_STRINGENCY=SILENT
-	    
-	echo `date`
+
+	exitcode=$?
+	if [ $exitcode -ne 0 ]
+	then
+	    MSG="markduplicates command failed exitcode=$exitcode  sortbammayo failed"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+	fi
+	echo `date`			    
+	
 	if [ ! -s $outfilewdups ]
 	then
-	    MSG="$outfilewdups file not created. markDuplicates step failed"
+	    MSG="$outfilewdups file not created. markDuplicates step failed sortbammayo failed"
 	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""	    
 	    exit 1;
 	fi
@@ -180,37 +224,47 @@ else
 	$samdir/samtools flagstat $outfilewdups > $outfilewdups.flagstat
 	$samdir/samtools view -H $outfilewdups > $outfilewdups.header
     else
-        echo "mark duplicates; job not requested"
-        `cp $sortedplain $outfilewdups`
-        `cp $sortedplain.flagstat $outfilewdups.flagstat`
-        `cp $sortedplain.header $outfilewdups.header`
-    fi
-
-    if [ $deldup == "TRUE" ]
-    then
-        echo "removing marked duplicates in sorted bam file"
-        java -Xmx6g -Xms512m -jar $picardir/MarkDuplicates.jar \
-	    INPUT=$sortedplain \
-	    OUTPUT=$outfilenodups \
-	    TMP_DIR=$outputdir \
-	    METRICS_FILE=$outfilenodups.dup.metrics \
-	    MAX_RECORDS_IN_RAM=null \
-	    CREATE_INDEX=true \
-	    REMOVE_DUPLICATES=true \
-	    VALIDATION_STRINGENCY=SILENT
-	echo `date`
-	if [ ! -s $outfilenodups ]
+        echo "remove duplicates or nothing to do"
+	if [ $deldup == "TRUE" ]
 	then
-	    MSG="$outfilenodups file not created. RemoveDuplicates step failed"
-	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
-	    exit 1;
-	fi
-        echo "indexing bam file w removed duplicates"
-	$samdir/samtools index $outfilenodups
-	$samdir/samtools flagstat $outfilenodups > $outfilenodups.flagstat
-	$samdir/samtools view -H $outfilenodups > $outfilenodups.header
-    else
-        echo "remove duplicates; job not requested"
+            echo "removing marked duplicates in sorted bam file"
+            java -Xmx6g -Xms512m -jar $picardir/MarkDuplicates.jar \
+		INPUT=$sortedplain \
+		OUTPUT=$outfilenodups \
+		TMP_DIR=$outputdir \
+		METRICS_FILE=$outfilenodups.dup.metrics \
+		MAX_RECORDS_IN_RAM=null \
+		CREATE_INDEX=true \
+		REMOVE_DUPLICATES=true \
+		VALIDATION_STRINGENCY=SILENT
+
+	    exitcode=$?
+	    if [ $exitcode -ne 0 ]
+	    then
+		MSG="markduplicates command failed exitcode=$exitcode  sortbammayo failed"
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+	    fi
+	    echo `date`			    
+
+	    if [ ! -s $outfilenodups ]
+	    then
+		MSG="$outfilenodups file not created. RemoveDuplicates step failed sortbammayo failed"
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit 1;
+	    fi
+            echo "indexing bam file w removed duplicates"
+	    $samdir/samtools index $outfilenodups
+	    $samdir/samtools flagstat $outfilenodups > $outfilenodups.flagstat
+	    $samdir/samtools view -H $outfilenodups > $outfilenodups.header
+
+	    echo `date`
+	else
+            echo "remove duplicates; job not requested"
+            `cp $sortedplain $outfilewdups`
+            `cp $sortedplain.flagstat $outfilewdups.flagstat`
+            `cp $sortedplain.header $outfilewdups.header`
+	    echo `date`
+        fi
     fi
-    echo `date`
 fi

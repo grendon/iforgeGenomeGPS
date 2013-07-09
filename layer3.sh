@@ -3,8 +3,8 @@
 ########################### 
 #		$1		=	       run info file
 ###########################
-redmine=hpcbio-redmine@igb.illinois.edu
-
+#redmine=hpcbio-redmine@igb.illinois.edu
+redmine=grendon@illinois.edu
 if [ $# != 1 ]
 then
         MSG="Parameter mismatch."
@@ -101,10 +101,11 @@ else
         echo "$scriptdir/main2.sh $runfile batch $outputlogs/MAIN.in $outputlogs/MAIN.ou $email $outputlogs/qsub.main" >> $qsub1
         `chmod a+r $qsub1`               
         jobid=`qsub $qsub1`
-        echo $jobid >> $outputlogs/MAINpbs
+        pipeid=$( echo $jobid | sed "s/\.[a-z]*//g" )
+        echo $pipeid >> $outputlogs/MAINpbs
         echo `date`
 
-        MSG="GGPS pipeline started on iforge by username:$USER at: "$( echo `date` )
+        MSG="GGPS pipeline with id:[${pipeid}] started on iforge by username:$USER at: "$( echo `date` )
         LOGS="jobid=${jobid}\nqsubfile=$outputlogs/qsub.main\nrunfile=$outputdir/runfile.txt\nerrorlog=$outputlogs/MAIN.in\noutputlog=$outputlogs/MAIN.ou"
         echo -e "$MSG\n\nDetails:\n\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 

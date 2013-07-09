@@ -1,6 +1,6 @@
 #!/bin/sh
-redmine=hpcbio-redmine@igb.illinois.edu
-
+#redmine=hpcbio-redmine@igb.illinois.edu
+redmine=grendon@illinois.edu
 if [ $# -gt 14 ]
 then
 	MSG="parameter mismatch."
@@ -53,30 +53,46 @@ else
     else
         `/usr/local/modules-3.2.9.iforge/Modules/bin/modulecmd bash load $javamodule`
     fi          
-    if [ ! -s $outputdir/$bamfile ]
+    if [ ! -s $bamfile ]
     then
 	MSG="$bamfile bam file to be sorted was not found"
 	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	exit 1;
     fi
 
-    if [ ! -s $outputdir/$infile ]
+    cd $outputdir
+    echo `date`
+    if [ ! -s $infile ]
     then
-        cd $outputdir
         $samdir/samtools view -b $bamfile $chr > $infile
+        exitcode=$?
+        if [ $exitcode -ne 0 ]
+        then
+	    MSG="samtools view command failed exitcode=$exitcode. $infile bam file to be sorted within region:[$chr] was not created"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+        fi
         if [ ! -s $infile ]
         then
 	    MSG="$infile bam file to be sorted within region:[$chr] was not created"
 	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
         fi
+	echo `date`
         $samdir/samtools index $infile
+        exitcode=$?
+        if [ $exitcode -ne 0 ]
+        then
+	    MSG="samtools index command failed exitcode=$exitcode. $infile bam file to be sorted within region:[$chr] was not created"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+        fi
+	echo `date`
     fi
 
     tmpfile=tmp.wrg.$infile
     parameters=$( echo $rgparms | tr ":" " " )
     sortflag=$( echo $flag | tr '[a-z]' '[A-Z]' )
-    cd $outputdir
 
     ## before sorting, we need to make sure the bam file has readgroup info
 
@@ -91,18 +107,35 @@ else
 	   SORT_ORDER=unsorted \
            $parameters \
 	   VALIDATION_STRINGENCY=SILENT
+
+       exitcode=$?
+       if [ $exitcode -ne 0 ]
+       then
+	    MSG="addorreplacereadgroup command failed exitcode=$exitcode  sortnode failed "
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+       fi
+       echo `date`
     else
-	   echo "alignment was done at Mayo. checking if readgroup info is present"
-	   $samdir/samtools view -H $infile > $infile.header
-	   match=$( cat $file.header | grep '^@RG' )
-	   lenmatch=`expr length $match`
-	   if [ $lenmatch -gt 0 ]
-	   then
-               echo "readgroup info found in input file."
-               cp $infile $tmpfile
-	   else
-               echo "readgroup info NOT found in input file. Adding it now..."
-	       java -Xmx6g -Xms512m -jar $picardir/AddOrReplaceReadGroups.jar \
+	echo "alignment was done at Mayo. checking if readgroup info is present"
+	$samdir/samtools view -H $infile > $infile.header
+        exitcode=$?
+        if [ $exitcode -ne 0 ]
+        then
+	    MSG="samtools view command failed exitcode=$exitcode  sortnode failed "
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+        fi
+	echo `date`
+	match=$( cat $file.header | grep '^@RG' )
+	lenmatch=`expr length $match`
+	if [ $lenmatch -gt 0 ]
+	then
+            echo "readgroup info found in input file."
+            cp $infile $tmpfile
+	else
+            echo "readgroup info NOT found in input file. Adding it now..."
+	    java -Xmx6g -Xms512m -jar $picardir/AddOrReplaceReadGroups.jar \
 		   INPUT=$infile \
 		   OUTPUT=$tmpfile \
 		   MAX_RECORDS_IN_RAM=null \
@@ -110,12 +143,21 @@ else
 		   SORT_ORDER=unsorted \
 		   $parameters \
 		   VALIDATION_STRINGENCY=SILENT
-	   fi
+            exitcode=$?
+            if [ $exitcode -ne 0 ]
+            then
+		MSG="addorreplacereadgroup command failed exitcode=$exitcode  sortnode failed "
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+            fi
+	    echo `date`
+
+	fi
     fi
 
     if [ ! -s $tmpfile ]
     then
-	MSG="$tmpfile bam file not created. add_readGroup step failed during realignment"
+	MSG="$tmpfile bam file not created. add_readGroup step failed. sortnode failed "
 	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	exit 1;
     fi
@@ -129,13 +171,38 @@ else
 	MAX_RECORDS_IN_RAM=null \
 	CREATE_INDEX=true \
 	VALIDATION_STRINGENCY=SILENT
+
+    exitcode=$?
+    if [ $exitcode -ne 0 ]
+    then
+	MSG="sortsam command failed exitcode=$exitcode  sortnode failed "
+	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	exit $exitcode;
+    fi
     echo `date`
+
     if [ ! -s $outfile ]
     then
-	MSG="$outfile sort bam file not created. sort step failed during realignment"
+	MSG="$outfile sort bam file not created.  sortnode failed "
 	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	exit 1;
     fi
     $samdir/samtools index $outfile
+    exitcode=$?
+    if [ $exitcode -ne 0 ]
+    then
+	MSG="samtools index command failed exitcode=$exitcode  sortnode failed "
+	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	exit $exitcode;
+    fi
+    echo `date`
     $samdir/samtools view -H $outfile > $outfile.header
+    exitcode=$?
+    if [ $exitcode -ne 0 ]
+    then
+	MSG="samtools viewcommand failed exitcode=$exitcode  sortnode failed "
+	echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	exit $exitcode;
+    fi
+    echo `date`
 fi

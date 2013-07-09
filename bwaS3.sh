@@ -1,5 +1,6 @@
 #!/bin/sh
-redmine=hpcbio-redmine@igb.illinois.edu
+#redmine=hpcbio-redmine@igb.illinois.edu
+redmine=grendon@illinois.edu
 if [ $# != 12 ]
 then
         MSG="parameter mismatch"
@@ -27,6 +28,13 @@ else
 
         cd $outputdir
         $alignerdir/bwa samse $ref $A1 $R1  > $samfile
+        exitcode=$?
+        if [ $exitcode -ne 0 ]
+        then
+            MSG="bwa samse command failed.  exitcode=$exitcode. alignment failed"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+            exit $exitcode;
+        fi
         if [ ! -s $samfile ]
         then
             MSG="$samfile aligned file not created. alignment failed"
@@ -36,9 +44,16 @@ else
         echo `date`
         ## include sam2bam conversion
 	$samdir/samtools view -bS -o $bamfile $samfile
+        exitcode=$?
+        if [ $exitcode -ne 0 ]
+        then
+            MSG="samtools view command failed.  exitcode=$exitcode. alignment failed"
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+            exit $exitcode;
+        fi
 	if [ ! -s $bamfile ]
 	then
-	    MSG="$outputdir/$bamfile bam file not created. sam2bam step failed during alignment."
+	    MSG="$bamfile bam file not created. sam2bam step failed during alignment."
 	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s '[Support #200] Mayo variant identification pipeline - Support #200' "$redmine,$email""
 	    exit 1;
 	fi       

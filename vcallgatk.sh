@@ -3,8 +3,8 @@
 #  script to perform variant calling with unifiedgenotyper ONLY
 #  This module is called from within the realign module
 ######################################
-redmine=hpcbio-redmine@igb.illinois.edu
-
+#redmine=hpcbio-redmine@igb.illinois.edu
+redmine=grendon@illinois.edu
 if [ $# != 10 ];
 then
 	MSG="parameter mismatch."
@@ -201,6 +201,16 @@ else
 	    -rf BadCigar \
 	    -o $outfile $region $uparms
 
+        exitcode=$?
+        if [ $exitcode -ne 0 ]
+        then
+	    MSG="unifiedgenotyper command failed  exitcode=$exitcode. vcall failed."
+	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+	    exit $exitcode;
+        fi
+
+	echo `date`
+
         if [ ! -s $outfile ]
         then
 	    MSG="$outfile unifiedgenotyper file not created. vcall failed."
@@ -221,6 +231,16 @@ else
             --ped $ped \
 	    --out $pedfile
 
+            exitcode=$?
+            if [ $exitcode -ne 0 ]
+            then
+		MSG="phasebytransmission command failed exitcode=$exitcode. vcall failed."
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+            fi
+
+	    echo `date`
+
             if [ ! -s $pedfile ]
             then
 		MSG="$pedfile phasebytransmission file not created. vcall failed."
@@ -235,12 +255,24 @@ else
             pilefile=$outfile.pileup
             tmpfile=$infile.$chr.tmp.snv
             $samdir/samtools mpileup -f $refdir/$ref $inputdir/$infile > $pilefile 
+
+            exitcode=$?
+            if [ $exitcode -ne 0 ]
+            then
+		MSG="samtools mpileup command failed exitcode=$exitcode . vcall failed."
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+            fi
+
+	    echo `date`
+
 	    if [ ! -s $pilefile ]
             then
 		MSG="$pilefile pileup file not created. snvmix failed"
 		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		exit 1;
 	    fi
+
             if [ $smode == "all" ]
             then
 		## question: modefile Mu_pi.txt does not exist in that folder
@@ -248,13 +280,35 @@ else
 	    else
 		$snvmixdir/SNVMix2 -i $pilefile -m $snvmixdir/Mu_pi.txt -o $tmpfile $snvmixparms
 	    fi
+
+            exitcode=$?
+            if [ $exitcode -ne 0 ]
+            then
+		MSG="snvmix2 command failed.  exitcode=$exitcode vcall failed."
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+            fi
+
+	    echo `date`
+
 	    if [ ! -s $tmpfile ]
             then
 		MSG="$tmpfile snvmix file not created. snvmix failed"
 		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 		exit 1;
 	    fi
+
 	    perl $scriptdir/snvmix_to_vcf.pl -i $tmpfile -o $snvfile
+            exitcode=$?
+            if [ $exitcode -ne 0 ]
+            then
+		MSG="snvmix2 command failed.  exitcode=$exitcode vcall failed."
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+            fi
+
+	    echo `date`
+
 	    if [ ! -s $snvfile ]
             then
 		MSG="snv to vcf conversion failed"
@@ -269,6 +323,16 @@ else
 	    $combparms \
 	    -T CombineVariants \
 	    -o  $combfile
+
+            exitcode=$?
+            if [ $exitcode -ne 0 ]
+            then
+		MSG="combinevariants command failed.  exitcode=$exitcode vcall failed."
+		echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
+		exit $exitcode;
+            fi
+
+	    echo `date`
 
             if [ ! -s $combfile ]
             then

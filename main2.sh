@@ -1,6 +1,6 @@
 #!/bin/sh
-redmine=hpcbio-redmine@igb.illinois.edu
-
+#redmine=hpcbio-redmine@igb.illinois.edu
+redmine=grendon@illinois.edu
 if [ $# != 6 ]
 then
         MSG="Parameter mismatch."
@@ -79,15 +79,17 @@ else
 	`chmod -R 770 $outputdir`
         `chmod 750 $epilogue`
         outputlogs=$outputdir/logs
+        pipeid=$( cat $outputlogs/MAINpbs )
+        
         case=""
         if [ $analysis == "ALIGN" -o $analysis == "ALIGNMENT" ]
         then
             echo "Type of analysis to run: ALIGNMENT only" 
-
+            
             qsub1=$outputlogs/qsub.main.aln1
             echo "#PBS -V" > $qsub1
             echo "#PBS -A $pbsprj" >> $qsub1
-            echo "#PBS -N MAINaln1" >> $qsub1
+            echo "#PBS -N ${pipeid}_MAINaln1" >> $qsub1
             echo "#pbs -l epilogue=$epligue" >> $qsub1
 	    echo "#PBS -l walltime=$pbscpu" >> $qsub1
 	    echo "#PBS -l nodes=1:ppn=1" >> $qsub1
@@ -108,7 +110,7 @@ else
 	    qsub2=$outputlogs/qsub.main.realn
 	    echo "#PBS -V" > $qsub2
 	    echo "#PBS -A $pbsprj" >> $qsub2
-	    echo "#PBS -N MAINrealn" >> $qsub2
+	    echo "#PBS -N ${pipeid}_MAINrealn" >> $qsub2
 	    echo "#pbs -l epilogue=$epligue" >> $qsub2
 	    echo "#PBS -l walltime=$pbscpu" >> $qsub2
 	    echo "#PBS -l nodes=1:ppn=1" >> $qsub2
@@ -129,7 +131,7 @@ else
 	    qsub1=$outputlogs/qsub.main.aln
 	    echo "#PBS -V" > $qsub1
 	    echo "#PBS -A $pbsprj" >> $qsub1
-	    echo "#PBS -N MAINaln" >> $qsub1
+	    echo "#PBS -N ${pipeid}_MAINaln" >> $qsub1
 	    echo "#pbs -l epilogue=$epligue" >> $qsub1
 	    echo "#PBS -l walltime=$pbscpu" >> $qsub1
 	    echo "#PBS -l nodes=1:ppn=1" >> $qsub1
@@ -142,7 +144,7 @@ else
 	    `chmod a+r $qsub1`               
 	    `qsub $qsub1 >> $outputlogs/MAINALNpbs`
 	    echo `date`
-            echo "Note: realign module will be scheduled after align module ends. See alignew2.sh"
+            echo "Note: realign module will be scheduled after align module ends"
             case="align and realign"  
         fi
         if [ $analysis == "VCALL_ONLY" -o $analysis == "VCALL" ]
@@ -152,7 +154,7 @@ else
 	    qsub3=$outputlogs/qsub.main.vcallgatk
 	    echo "#PBS -V" > $qsub3
 	    echo "#PBS -A $pbsprj" >> $qsub3
-	    echo "#PBS -N MAINvcall" >> $qsub3
+	    echo "#PBS -N ${pipeid}_MAINvcall" >> $qsub3
 	    echo "#PBS -l epilogue=$epilogue" >> $qsub3
 	    echo "#PBS -l walltime=$pbscpu" >> $qsub3
 	    echo "#PBS -l nodes=1:ppn=16" >> $qsub3
