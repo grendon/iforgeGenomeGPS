@@ -1,10 +1,10 @@
 #!/bin/sh
 #redmine=hpcbio-redmine@igb.illinois.edu
-redmine=grendon@illinois.edu
+redmine=grendon@illinois.edu,lmainzer@illinois.edu
 if [ $# != 12 ]
 then
         MSG="parameter mismatch"
-        echo -e "jobid:${PBS_JOBID}\nprogram=$0 stooped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline - Support #200' "$grendon@illinois.edu""
+        echo -e "jobid:${PBS_JOBID}\nprogram=$0 stooped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline - Support #200' "$grendon@illinois.edu,lmainzer@illinois.edu""
         exit 1;
 
 else

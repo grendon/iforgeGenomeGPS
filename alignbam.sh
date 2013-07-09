@@ -7,7 +7,7 @@ redmine=grendon@illinois.edu,lmainzer@illinois.edu
 if [ $# != 5 ]
 then
         MSG="Parameter mismatch"
-        echo -e "jobid:${PBS_JOBID}\nprogram=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$grendon@illinois.edu""
+        echo -e "jobid:${PBS_JOBID}\nprogram=$0 stopped at line=$LINENO.\nReason=$MSG" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$grendon@illinois.edu,lmainzer@illinois.edu""
         exit 1;
 else 
 	set -x

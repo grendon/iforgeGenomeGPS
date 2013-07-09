@@ -2,7 +2,7 @@
 #
 #  script to realign and recalibrate the aligned file(s)
 #redmine=hpcbio-redmine@igb.illinois.edu
-redmine=grendon@illinois.edu
+redmine=grendon@illinois.edu,lmainzer@illinois.edu
 if [ $# != 9 ]
 then
     MSG="parameter mismatch."

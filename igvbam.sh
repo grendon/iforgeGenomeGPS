@@ -1,6 +1,6 @@
 #!/bin/sh
 #redmine=hpcbio-redmine@igb.illinois.edu
-redmine=grendon@illinois.edu
+redmine=grendon@illinois.edu,lmainzer@illinois.edu
 if [ $# != 7 ] 
 then
     MSG="parameter mismatch."

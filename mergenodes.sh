@@ -4,7 +4,7 @@
 # files were the result of splitting input file prior to running alignment
 ###############################
 #redmine=hpcbio-redmine@igb.illinois.edu
-redmine=grendon@illinois.edu
+redmine=grendon@illinois.edu,lmainzer@illinois.edu
 if [ $# != 11 ] 
 then
     MSG="parameter mismatch."

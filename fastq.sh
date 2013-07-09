@@ -3,7 +3,7 @@
 #  script to calculate quality information of fastq file
 ######################################
 #redmine=hpcbio-redmine@igb.illinois.edu
-redmine=grendon@illinois.edu
+redmine=grendon@illinois.edu,lmainzer@illinois.edu
 if [ $# != 8 ];
 then
 	MSG="parameter mismatch"
