@@ -1,0 +1,101 @@
+## i/o
+INPUTDIR=/projects/mayo/MayoTestData/SteveHartSelectedSubset
+SAMPLEDIR=/projects/mayo/MayoTestData/SteveHartSelectedSubset
+SAMPLEFILENAMES=/projects/mayo/scripts/config/BamInput_AlignedOnly_Multisamples.samplenames
+OUTPUTDIR=/projects/mayo/GGPSresults/lmainzer_v2.0_BamInput_RealignOnly_onAlignedOnly_Multisample_Jun26
+EMAIL=lmainzer@igb.illinois.edu
+
+## choose the run case
+ANALYSIS=REALIGN_ONLY
+SKIPVCALL=YES
+RESORTBAM=NO
+
+## input data
+PAIRED=1
+READLENGTH=100
+MULTISAMPLE=YES
+PROVENANCE=MULTI_SOURCE
+SAMPLEINFORMATION=end2end multisamples
+SAMPLENAMES=sample1 sample2
+SAMPLEID=SteveHart
+SAMPLELB=hg19
+SAMPLEPL=illumina
+SAMPLEPU=SteveHart
+SAMPLESM=SteveHart
+SAMPLECN=Mayo
+TYPE=exome
+DISEASE=cancer
+GROUPNAMES=NA
+LABINDEX=-:-
+LANEINDEX=1:2
+
+# tools to be used
+JAVAMODULE=java-1.6
+ALIGNER=BWA
+SORTMERGETOOL=NOVOSORT
+SNV_CALLER=GATK
+SOMATIC_CALLER=SOMATICSNIPPER
+
+## preparatory block
+BAM2FASTQFLAG=
+BAM2FASTQPARMS=INCLUDE_NON_PF_READS=true
+REVERTSAM=0
+FASTQCFLAG=
+FASTQCPARMS=-t 15 -q
+
+## alignment block parameters
+BWAPARAMS=-l 32 -t 16
+NOVOPARAMS=-g 60 -x 2 -i PE 425,80 -r Random --hdrhd off -v 120 -c 16
+BLATPARAMS=-w 50 -m 70 -t 90
+
+## realign/recalibrate block parameters
+REALIGNPARMS=
+MARKDUP=YES
+REMOVE_DUP=NO
+REORDERSAM=NO
+REALIGNORDER=1
+
+## variant calling block parameters
+CHRINDEX=3:4:5:6:7:8:9:10:11:12:13:14:15:16:17:18:19:20:21:22:X:Y:M
+PEDIGREE=NA
+VARIANT_TYPE=BOTH
+UNIFIEDGENOTYPERPARMS=-maxAlleles 5
+SNVMIX2PARMS=
+SNVMIX2FILTER=-p 0.8
+
+## other parameters - DO NOT EDIT
+EPILOGUE=/projects/mayo/scripts/epilogue.user
+GENOMEBUILD=hg19
+EMIT_ALL_SITES=YES
+DEPTH_FILTER=0
+TARGETTED=NO
+
+## paths to input output and tools - DO NOT EDIT
+REFGENOMEDIR=/projects/mayo/reference
+REFGENOME=mayo_novo/allchr.fa
+DBSNP=mayo_dbsnp/hg19/dbsnp_135.hg19.vcf.gz
+KGENOME=kGenome/hg19/kgenome.hg19.vcf
+ONTARGET=/projects/mayo/reference/agilentOnTarget
+NOVOINDEX=mayo_novo/allchr.nix
+BWAINDEX=mayo_novo/allchr.fa
+NOVODIR=/projects/mayo/builds/novocraft
+BWADIR=/projects/mayo/builds/bwa-0.5.9
+PICARDIR=/projects/mayo/builds/picard-tools-1.77
+GATKDIR=/projects/mayo/builds/GATK-1.6-9
+SAMDIR=/projects/mayo/builds/samtools-0.1.18
+FASTQCDIR=/projects/mayo/builds/FastQC
+SCRIPTDIR=/projects/mayo/scripts
+SNVMIXDIR=/projects/mayo/builds/SNVMix2-0.11.8-r5
+DELIVERYFOLDER=delivery
+IGVDIR=IGV_BAM
+
+## pbs resources - DO NOT EDIT
+PBSPROJECTID=bf0
+PBSNODES=8
+PBSTHREADS=16
+PBSQUEUEEXOME=normal
+PBSQUEUEWGEN=long
+PBSCPUALIGNWGEN=240:00:00
+PBSCPUALIGNEXOME=48:00:00
+PBSCPUOTHERWGEN=240:00:00
+PBSCPUOTHEREXOME=48:00:00
