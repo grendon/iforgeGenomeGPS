@@ -35,9 +35,9 @@ else
 
         cd $outputdir
         $aligndir/bwa aln $parameters $qual $ref $R > $outputfile
-        if [ ! -s $outputdir/$outputfile ]
+        if [ ! -s $outputfile ]
         then
-            MSG="$outputdir/$outputfile aligned file not created. alignment failed"
+            MSG="$outputfile aligned file not created. alignment failed"
 	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge  "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi

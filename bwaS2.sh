@@ -26,19 +26,19 @@ else
         LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
 
         cd $outputdir
-        $alignerdir/bwa sampe $ref $A1 $A2 $R1 $R2 > $outputdir/$samfile
-        if [ ! -s $outputdir/$samfile ]
+        $alignerdir/bwa sampe $ref $A1 $A2 $R1 $R2 > $samfile
+        if [ ! -s $samfile ]
         then
-            MSG="$outputdir/$samfile aligned file not created. alignment failed"
+            MSG="$samfile aligned file not created. alignment failed"
 	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
             exit 1;
         fi
         echo `date`
         ## sam2bam conversion
 	$samdir/samtools view -bS -o $bamfile $samfile
-	if [ ! -s $outputdir/$bamfile ]
+	if [ ! -s $bamfile ]
 	then
-	    MSG="$outputdir/$bamfile bam file not created. sam2bam step failed during alignment."
+	    MSG="$bamfile bam file not created. sam2bam step failed during alignment."
 	    echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
 	    exit 1;
 	fi       

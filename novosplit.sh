@@ -41,19 +41,19 @@ else
            olog=${13}
            email=${14}
            qsubfile=${15}
-           $alignerdir/novoalign -d $ref -f $R1 $R2 -o SAM $parameters $qual > $outputdir/$samfile
+           $alignerdir/novoalign -d $ref -f $R1 $R2 -o SAM $parameters $qual > $samfile
         else
            elog=${11}
            olog=${12}
            email=${13}
            qsubfile=${14}
-           $alignerdir/novoalign -d $ref -f $R1 -o SAM $parameters $qual > $outputdir/$samfile
+           $alignerdir/novoalign -d $ref -f $R1 -o SAM $parameters $qual > $samfile
         fi
 
         LOGS="jobid:${PBS_JOBID}\nqsubfile=$qsubfile\nerrorlog=$elog\noutputlog=$olog"
-        if [ ! -s $outputdir/$samfile ]
+        if [ ! -s $samfile ]
         then
-           MSG="$outputdir/$samfile aligned file not created. alignment failed"
+           MSG="$samfile aligned file not created. alignment failed"
 	   echo -e "program=$scriptfile stopped at line=$LINENO.\nReason=$MSG\n$LOGS" | ssh iforge "mailx -s '[Support #200] Mayo variant identification pipeline' "$redmine,$email""
            exit 1;
         fi

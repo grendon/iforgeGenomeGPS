@@ -88,6 +88,7 @@ else
     cd $outputdir
     $novodir/novosort --tmpdir $outputdir --rg "${rgheader}" --threads $threads $listfiles > $tmpfilewdups 
 
+
     if [ ! -s $tmpfilewdups ]
     then
         MSG="$tmpfilewdups merged file not created. novosort step failed"

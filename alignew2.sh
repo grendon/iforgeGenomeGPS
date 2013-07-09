@@ -588,7 +588,7 @@ else
                         jobr2=`qsub $qsub2`
 			`qhold -h u $jobr2`
 			echo $jobr2 >> $outputlogs/ALIGNED_$dirname
-
+                        bwajobs=$( cat $outputlogs/ALIGNED_$dirname | sed "s/\.[a-z]*//g" | tr "\n" ":" )
 			qsub3=$outputlogs/qsub.bwar3.$prevname.node$i
 			echo "#PBS -V" > $qsub3
 			echo "#PBS -N bwar3_${prevname}_$i" >> $qsub3
@@ -601,7 +601,7 @@ else
 			echo "#PBS -q $pbsqueue" >> $qsub3
 			echo "#PBS -m ae" >> $qsub3
 			echo "#PBS -M $email" >> $qsub3
-			echo "#PBS -W depend=afterok:$jobr2" >> $qsub3
+			echo "#PBS -W depend=afterok:$bwajobs" >> $qsub3
 			echo "$scriptdir/bwaS2.sh $alignerdir $refdir/$refindexed $outputalign $outputsam.node$i.R1.sai $outputsam.node$i.R2.sai $outputalign/$Rone $outputalign/$Rtwo $outputsam.node$i.sam $outputsam.node$i.bam $samdir $outputlogs/log.bwar3.$prevname.node$i.in $outputlogs/log.bwar3.$prevname.node$i.ou $email $outputlogs/qsub.bwar3.$prevname.node$i" >> $qsub3
 			`chmod a+r $qsub3`
                         jobwa=`qsub $qsub3`

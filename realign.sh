@@ -138,7 +138,7 @@ else
         JOBSmayo=""
         JOBSncsa=""
 
-        if [ $resortflag == "YES" ]
+        if [ $resortflag == "YES" -a $analysis == "REALIGN_ONLY" ]
         then
             echo "alignment was NOT done inhouse. Need to resort bam files. Checking input files"
 
@@ -250,10 +250,10 @@ else
         else
             if [ $analysis == "REALIGNONLY" -o $analysis == "REALIGN_ONLY" ]
             then
-		echo "alignment was NOT done inhouse. BAM files will not be resorted. Skipping preprocessing"
+		echo "alignment was NOT done inhouse. BAM files will not be resorted"
                 if [ $revertsam != "1" ]
                 then
-                    echo "input is aligned bam that is suitable for realignment and recalibration..."
+                    echo "input is aligned bam that is suitable for realignment and recalibration... no need for preprocessing"
                     while read sampledetail
                     do
 			bam=$( echo $sampledetail | cut -d "=" -f2 )
@@ -266,29 +266,34 @@ else
                       if [ `expr length ${sampledetail}` -gt 0 ]
                       then
 			bamfile=$( echo $sampledetail | cut -d "=" -f2 )
-                        prefix=`basename $bamfile .bam`
-                        dirname=`dirname ${bamfile}`
-                        revbamfile=$dirname/${prefix}_revsam
+			if [ `expr length ${bamfile}` -lt 1 ]
+                        then
+                           echo "skip empty line"
+                        else
+                            prefix=`basename $bamfile .bam`
+                            dirname=`dirname ${bamfile}`
+                            revbamfile=$dirname/${prefix}_revsam
 
-			listfiles=${revbamfile}${sep}${listfiles}
-			qsub2=$output_logs/qsub.revertinputbam.$prefix
-			echo "#PBS -V" > $qsub2
-			echo "#PBS -A $pbsprj" >> $qsub2
-			echo "#PBS -N revertinputbam_${prefix}" >> $qsub2
-			echo "#PBS -l epilogue=$epilogue" >> $qsub2
-			echo "#PBS -l walltime=$pbscpu" >> $qsub2
-			echo "#PBS -l nodes=1:ppn=16" >> $qsub2
-			echo "#PBS -o $output_logs/log.revertinputbam.${prefix}.ou" >> $qsub2
-			echo "#PBS -e $output_logs/log.revertinputbam.${prefix}.in" >> $qsub2
-			echo "#PBS -q $pbsqueue" >> $qsub2
-			echo "#PBS -m ae" >> $qsub2
-			echo "#PBS -M $email" >> $qsub2
-			echo "$scriptdir/revertinputbam.sh $bamfile $revbamfile $picardir $samdir $output_logs/log.revertinputbam.${prefix}.in $output_logs/log.revertinputbam.${prefix}.ou $email $output_logs/qsub.revertinputbam.$prefix" >> $qsub2
-			`chmod a+r $qsub2`
-			revbamid=`qsub $qsub2`
-			`qhold -h u $revbamid`
-			echo $revbamid >> $output_logs/REVERTINPUTBAMpbs
-                       else
+			    listfiles=${revbamfile}${sep}${listfiles}
+			    qsub2=$output_logs/qsub.revertinputbam.$prefix
+			    echo "#PBS -V" > $qsub2
+			    echo "#PBS -A $pbsprj" >> $qsub2
+			    echo "#PBS -N revertinputbam_${prefix}" >> $qsub2
+			    echo "#PBS -l epilogue=$epilogue" >> $qsub2
+			    echo "#PBS -l walltime=$pbscpu" >> $qsub2
+			    echo "#PBS -l nodes=1:ppn=16" >> $qsub2
+			    echo "#PBS -o $output_logs/log.revertinputbam.${prefix}.ou" >> $qsub2
+			    echo "#PBS -e $output_logs/log.revertinputbam.${prefix}.in" >> $qsub2
+			    echo "#PBS -q $pbsqueue" >> $qsub2
+			    echo "#PBS -m ae" >> $qsub2
+			    echo "#PBS -M $email" >> $qsub2
+			    echo "$scriptdir/revertinputbam.sh $bamfile $revbamfile $picardir $samdir $output_logs/log.revertinputbam.${prefix}.in $output_logs/log.revertinputbam.${prefix}.ou $email $output_logs/qsub.revertinputbam.$prefix" >> $qsub2
+			    `chmod a+r $qsub2`
+			    revbamid=`qsub $qsub2`
+			    `qhold -h u $revbamid`
+			    echo $revbamid >> $output_logs/REVERTINPUTBAMpbs
+                        fi
+                      else
                         echo "skip empty line"
                       fi
                     done < $samplefileinfo
