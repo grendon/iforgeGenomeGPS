@@ -1,0 +1,8 @@
+java -Xmx6g -Xms512m -jar /projects/mayo/builds/picard-tools-1.77/SortSam.jar \
+        INPUT=/projects/mayo/MayoTestData/SteveHartSelectedSubset/s_534494.igv-sorted.bam \
+        OUTPUT=/projects/mayo/MayoTestData/SteveHartSelectedSubset/s_534494.igv-sorted.bam.sorted_by_readname.2.bam \
+        TMP_DIR=/projects/mayo/MayoTestData/SteveHartSelectedSubset/ \
+        SORT_ORDER=queryname \
+        MAX_RECORDS_IN_RAM=null \
+        CREATE_INDEX=true \
+        VALIDATION_STRINGENCY=SILENT
