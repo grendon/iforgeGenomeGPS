@@ -1,0 +1,12 @@
+#PBS -V
+#PBS -A bf0
+#PBS -N 907314_convertbam16986_revertsam_1
+#pbs -l epilogue=
+#PBS -l walltime=48:00:00
+#PBS -l nodes=1:ppn=1
+#PBS -o /projects/mayo/GGPSresults/TestingBamInputDirectlyToAligner_GGPSv2.2/TestEntirePipeline_3bams_on_himem2/logs/log.convertbam.16986_revertsam_1.ou
+#PBS -e /projects/mayo/GGPSresults/TestingBamInputDirectlyToAligner_GGPSv2.2/TestEntirePipeline_3bams_on_himem2/logs/log.convertbam.16986_revertsam_1.in
+#PBS -q himem2
+#PBS -m ae
+#PBS -M lmainzer@igb.illinois.edu
+/ui/mayo/lmainzer/GenomeGPS_development/iforgeGenomeGPS/convertbam.sh /projects/mayo/MayoTestData/SteveHartSelectedSubset /projects/mayo/MayoTestData/SteveHartSelectedSubset/s_FCP1122.igv-sorted.bam 16986_revertsam_1 /projects/mayo/MayoTestData/SteveHartSelectedSubset/16986_revertsam_1 /projects/mayo/GGPSresults/TestingBamInputDirectlyToAligner_GGPSv2.2/TestEntirePipeline_3bams_on_himem2/runfile_revertsam_1.txt /projects/mayo/GGPSresults/TestingBamInputDirectlyToAligner_GGPSv2.2/TestEntirePipeline_3bams_on_himem2/logs/log.convertbam.16986_revertsam_1.in /projects/mayo/GGPSresults/TestingBamInputDirectlyToAligner_GGPSv2.2/TestEntirePipeline_3bams_on_himem2/logs/log.convertbam.16986_revertsam_1.ou lmainzer@igb.illinois.edu /projects/mayo/GGPSresults/TestingBamInputDirectlyToAligner_GGPSv2.2/TestEntirePipeline_3bams_on_himem2/logs/qsub.convertbam.16986_revertsam_1
